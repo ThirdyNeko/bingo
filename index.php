@@ -43,14 +43,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $update = $pdo->prepare("UPDATE users SET current_game = ? WHERE id_number = ?");
                 $update->execute([$game['id'], $id_number]);
 
-                // 4️⃣ Store Session
-                $_SESSION['game_id'] = $game['id'];
+                // 4️⃣ Store Session (fixed)
+                $_SESSION['game_id']   = $game['id'];
                 $_SESSION['game_code'] = $game['game_code'];
-                $_SESSION['user_id'] = $user['id_number'];
-                $_SESSION['name'] = $user['name'];
-                $_SESSION['role'] = $user['role'];
+                $_SESSION['user_id']   = $user['id'];       // INTERNAL ID, not id_number
+                $_SESSION['name']      = $user['name'];
+                $_SESSION['role']      = $user['role'];
 
-                header("Location: game.php");
+                header("Location: lobby.php");
                 exit;
             }
         }
