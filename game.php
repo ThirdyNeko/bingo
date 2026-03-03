@@ -36,6 +36,9 @@ $cards = $stmt->fetchAll(PDO::FETCH_COLUMN);
 if (empty($cards)) {
     die("No cards assigned yet. Please wait for the host to start.");
 }
+
+$drawnNumbers = json_decode($game['drawn_numbers'], true) ?? [];
+
 ?>
 
 <!DOCTYPE html>
@@ -127,10 +130,28 @@ if (empty($cards)) {
 </div>
 
 <script>
-// Allow marking cells
+const drawnNumbers = <?= json_encode($drawnNumbers) ?>;
+</script>
+<script src="sweetalert\dist\sweetalert2.all.min.js"></script>
+<script>
 document.querySelectorAll('.bingo-cell').forEach(cell => {
     cell.addEventListener('click', () => {
-        cell.classList.toggle('marked');
+
+        const number = parseInt(cell.innerText);
+
+        if (drawnNumbers.includes(number)) {
+            cell.classList.toggle('marked');
+        } else {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Oops!',
+                text: "That number hasn't been drawn yet!",
+                confirmButtonColor: '#764ba2',
+                background: '#1e1e2f',
+                color: '#ffffff'
+            });
+        }
+
     });
 });
 </script>
