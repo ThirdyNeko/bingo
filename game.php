@@ -89,7 +89,8 @@ $pattern = json_decode($game['pattern'], true) ?? [];
                                     <td 
                                         class="bingo-cell"
                                         data-row="<?= $row ?>"
-                                        data-col-index="<?= array_search($col, ['B','I','N','G','O']) ?>">
+                                        data-col-index="<?= array_search($col, ['B','I','N','G','O']) ?>"
+                                        data-number="<?= $card[$col][$row] ?>">
                                         <?= $card[$col][$row] ?>
                                     </td>
                                 <?php endif; ?>
@@ -116,48 +117,63 @@ const gamePattern = <?= json_encode($pattern) ?>;
 </script>
 <script src="sweetalert\dist\sweetalert2.all.min.js"></script>
 <script>
-document.querySelectorAll('.bingo-card').forEach(card => {
+document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
 
     const cells = card.querySelectorAll('.bingo-cell');
     const bingoButton = card.querySelector('.bingo-btn');
 
-    function checkPattern() {
+    // Load manual marks from localStorage
+    const storageKey = `bingo_marks_card_${cardIndex}`;
+    const savedMarks = JSON.parse(localStorage.getItem(storageKey)) || [];
+    const manualMarks = new Set(savedMarks);
 
+    function restoreMarks() {
+        cells.forEach(cell => {
+            const number = parseInt(cell.dataset.number);
+            if (manualMarks.has(number)) {
+                cell.classList.add('marked');
+            } else {
+                cell.classList.remove('marked');
+            }
+        });
+        checkPattern();
+    }
+
+    function checkPattern() {
         if (!bingoButton) return;
 
         let matched = true;
 
         cells.forEach(cell => {
-
             const row = parseInt(cell.dataset.row);
             const col = parseInt(cell.dataset.colIndex);
 
             if (!gamePattern[row]) return;
 
             if (gamePattern[row][col] === 1) {
-
-                if (row === 2 && col === 2) return;
-
-                if (!cell.classList.contains('marked')) {
-                    matched = false;
-                }
+                if (row === 2 && col === 2) return; // FREE space
+                if (!cell.classList.contains('marked')) matched = false;
             }
         });
 
-        if (matched) {
-            bingoButton.classList.remove('d-none');
-        } else {
-            bingoButton.classList.add('d-none');
-        }
+        if (matched) bingoButton.classList.remove('d-none');
+        else bingoButton.classList.add('d-none');
     }
 
+    // Handle clicks
     cells.forEach(cell => {
         cell.addEventListener('click', () => {
+            const number = parseInt(cell.dataset.number);
 
-            const number = parseInt(cell.innerText);
-
+            // Check if number is drawn
             if (drawnNumbers.includes(number)) {
                 cell.classList.toggle('marked');
+
+                if (cell.classList.contains('marked')) manualMarks.add(number);
+                else manualMarks.delete(number);
+
+                localStorage.setItem(storageKey, JSON.stringify(Array.from(manualMarks)));
+
                 checkPattern();
             } else {
                 Swal.fire({
@@ -169,6 +185,71 @@ document.querySelectorAll('.bingo-card').forEach(card => {
             }
         });
     });
+
+    // Restore marks on page load
+    restoreMarks();
+
+    // ----- Long polling for new numbers (no auto-color) -----
+    async function pollNewNumbers(lastNumber = 0) {
+        try {
+            const res = await fetch(`get_drawn_numbers.php?lastNumber=${lastNumber}`);
+            const data = await res.json();
+
+            if (data.newNumbers.length > 0) {
+                data.newNumbers.forEach(n => drawnNumbers.push(n));
+                lastNumber = Math.max(...drawnNumbers);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            pollNewNumbers(lastNumber); // Immediately poll again
+        }
+    }
+
+    pollNewNumbers(); // Start long-polling
+
+    // ----- Handle Bingo button click -----
+    if (bingoButton) {
+        bingoButton.addEventListener('click', async () => {
+            const markedNumbers = Array.from(cells)
+                .filter(cell => cell.classList.contains('marked'))
+                .map(cell => parseInt(cell.dataset.number));
+
+            try {
+                const res = await fetch('claim_bingo.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        cardIndex: cardIndex,
+                        markedNumbers: markedNumbers
+                    })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Bingo claimed!',
+                        text: data.message || '',
+                    });
+                    bingoButton.disabled = true; // prevent double claiming
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Oops!',
+                        text: data.message || 'Cannot claim bingo now.',
+                    });
+                }
+            } catch (err) {
+                console.error(err);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Something went wrong while claiming bingo.',
+                });
+            }
+        });
+    }
 
 });
 </script>
