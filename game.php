@@ -123,9 +123,17 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
     const bingoButton = card.querySelector('.bingo-btn');
 
     // Load manual marks from localStorage
-    const storageKey = `bingo_marks_card_${cardIndex}`;
+    const storageKey = `bingo_marks_game_${<?= $gameId ?>}_card_${cardIndex}`;
     const savedMarks = JSON.parse(localStorage.getItem(storageKey)) || [];
     const manualMarks = new Set(savedMarks);
+
+    const currentGameId = <?= $gameId ?>;
+    const lastGameId = localStorage.getItem("last_game_id");
+
+    if (lastGameId != currentGameId) {
+        localStorage.clear();
+        localStorage.setItem("last_game_id", currentGameId);
+    }
 
     function restoreMarks() {
         cells.forEach(cell => {
