@@ -68,44 +68,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <!-- Bootstrap 5 CDN -->
     <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/design.css" rel="stylesheet">
 </head>
 <body class="bg-dark d-flex align-items-center" style="min-height: 100vh;">
 
 <style>
     body {
         background: radial-gradient(circle at top, #1f1f1f, #0f0f0f);
-    }
-
-    .dark-card {
-        background-color: #1a1a1a;
-        color: #ffffff;
-        border: 1px solid rgba(255,255,255,0.05);
-    }
-
-    .form-control {
-        background-color: #2a2a2a;
-        border: 1px solid #444;
-        color: #fff;
-    }
-
-    .form-control:focus {
-        background-color: #2a2a2a;
-        border-color: #0d6efd;
-        box-shadow: 0 0 0 0.2rem rgba(13,110,253,.25);
-        color: #fff;
-    }
-
-    .form-control::placeholder {
-        color: #aaa;
-    }
-
-    .btn-primary {
-        background: linear-gradient(45deg, #0d6efd, #4dabf7);
-        border: none;
-    }
-
-    .btn-primary:hover {
-        opacity: 0.9;
     }
 </style>
 

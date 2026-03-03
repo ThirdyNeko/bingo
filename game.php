@@ -49,6 +49,7 @@ $pattern = json_decode($game['pattern'], true) ?? [];
     <title>My Bingo Cards</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/design.css" rel="stylesheet">
 
     <style>
         body {
@@ -56,61 +57,6 @@ $pattern = json_decode($game['pattern'], true) ?? [];
             min-height: 100vh;
             color: white;
         }
-
-        .bingo-card {
-            max-width: 500px;
-            margin: auto;
-        }
-
-        .bingo-table td, .bingo-table th {
-            width: 70px;
-            height: 70px;
-            vertical-align: middle;
-            cursor: pointer;
-            transition: 0.2s;
-            user-select: none;
-        }
-
-        .bingo-table td:hover {
-            transform: scale(1.05);
-        }
-
-        .marked {
-            background-color: #198754 !important;
-            color: white !important;
-        }
-
-        .free {
-            background-color: #ffc107 !important;
-            font-weight: bold;
-        }
-
-        .card-body h5 {
-            font-weight: bold;
-        }
-        .bingo-btn {
-            font-size: 1.8rem;          /* Bigger text */
-            padding: 15px 30px;         /* Bigger button */
-            border-radius: 12px;        /* Rounded corners */
-            box-shadow: 0 5px 20px rgba(0,0,0,0.4); /* Shadow for 3D effect */
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .bingo-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.5);
-        }
-
-        /* Bounce animation */
-        @keyframes bounce {
-            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-            40% { transform: translateY(-15px); }
-            60% { transform: translateY(-8px); }
-        }
-
-        .bounce-btn {
-            animation: bounce 2s infinite;
-}
     </style>
 </head>
 <body class="py-4">
