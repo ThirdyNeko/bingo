@@ -38,6 +38,7 @@ if (empty($cards)) {
 }
 
 $drawnNumbers = json_decode($game['drawn_numbers'], true) ?? [];
+$pattern = json_decode($game['pattern'], true) ?? [];
 
 ?>
 
@@ -87,6 +88,29 @@ $drawnNumbers = json_decode($game['drawn_numbers'], true) ?? [];
         .card-body h5 {
             font-weight: bold;
         }
+        .bingo-btn {
+            font-size: 1.8rem;          /* Bigger text */
+            padding: 15px 30px;         /* Bigger button */
+            border-radius: 12px;        /* Rounded corners */
+            box-shadow: 0 5px 20px rgba(0,0,0,0.4); /* Shadow for 3D effect */
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .bingo-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+        }
+
+        /* Bounce animation */
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-15px); }
+            60% { transform: translateY(-8px); }
+        }
+
+        .bounce-btn {
+            animation: bounce 2s infinite;
+}
     </style>
 </head>
 <body class="py-4">
@@ -116,13 +140,24 @@ $drawnNumbers = json_decode($game['drawn_numbers'], true) ?? [];
                                 <?php if ($row == 2 && $col == 'N'): ?>
                                     <td class="free marked">FREE</td>
                                 <?php else: ?>
-                                    <td class="bingo-cell"><?= $card[$col][$row] ?></td>
+                                    <td 
+                                        class="bingo-cell"
+                                        data-row="<?= $row ?>"
+                                        data-col-index="<?= array_search($col, ['B','I','N','G','O']) ?>">
+                                        <?= $card[$col][$row] ?>
+                                    </td>
                                 <?php endif; ?>
                             <?php endforeach; ?>
                         </tr>
                     <?php endfor; ?>
                     </tbody>
                 </table>
+
+                <button 
+                    class="btn btn-success mt-3 bingo-btn d-none bounce-btn"
+                    data-card-index="<?= $index ?>">
+                    🎉 BINGO! 🎉
+                </button>
             </div>
         </div>
     <?php endforeach; ?>
@@ -131,28 +166,64 @@ $drawnNumbers = json_decode($game['drawn_numbers'], true) ?? [];
 
 <script>
 const drawnNumbers = <?= json_encode($drawnNumbers) ?>;
+const gamePattern = <?= json_encode($pattern) ?>;
 </script>
 <script src="sweetalert\dist\sweetalert2.all.min.js"></script>
 <script>
-document.querySelectorAll('.bingo-cell').forEach(cell => {
-    cell.addEventListener('click', () => {
+document.querySelectorAll('.bingo-card').forEach(card => {
 
-        const number = parseInt(cell.innerText);
+    const cells = card.querySelectorAll('.bingo-cell');
+    const bingoButton = card.querySelector('.bingo-btn');
 
-        if (drawnNumbers.includes(number)) {
-            cell.classList.toggle('marked');
+    function checkPattern() {
+
+        if (!bingoButton) return;
+
+        let matched = true;
+
+        cells.forEach(cell => {
+
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.colIndex);
+
+            if (!gamePattern[row]) return;
+
+            if (gamePattern[row][col] === 1) {
+
+                if (row === 2 && col === 2) return;
+
+                if (!cell.classList.contains('marked')) {
+                    matched = false;
+                }
+            }
+        });
+
+        if (matched) {
+            bingoButton.classList.remove('d-none');
         } else {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Oops!',
-                text: "That number hasn't been drawn yet!",
-                confirmButtonColor: '#764ba2',
-                background: '#1e1e2f',
-                color: '#ffffff'
-            });
+            bingoButton.classList.add('d-none');
         }
+    }
 
+    cells.forEach(cell => {
+        cell.addEventListener('click', () => {
+
+            const number = parseInt(cell.innerText);
+
+            if (drawnNumbers.includes(number)) {
+                cell.classList.toggle('marked');
+                checkPattern();
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Not Drawn!',
+                    timer: 1200,
+                    showConfirmButton: false
+                });
+            }
+        });
     });
+
 });
 </script>
 
