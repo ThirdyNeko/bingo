@@ -52,4 +52,11 @@ if (!empty(array_diff($patternNumbers, $markedNumbers))) {
 $pdo->prepare("UPDATE game_winner_queue SET claimed = 1 WHERE game_id = ? AND card_id = ?")
     ->execute([$gameId, $card['id']]);
 
+// ➕ Add 1 win to the user
+$pdo->prepare("
+    UPDATE users
+    SET wins = wins + 1
+    WHERE id = ?
+")->execute([$userId]);
+
 echo json_encode(['success' => true, 'message' => 'Bingo claimed!']);
