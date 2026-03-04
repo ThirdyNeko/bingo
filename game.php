@@ -17,6 +17,19 @@ $stmt = $pdo->prepare("SELECT * FROM game WHERE id = ?");
 $stmt->execute([$gameId]);
 $game = $stmt->fetch(PDO::FETCH_ASSOC);
 
+/* ==============================
+   CLAIMED WINNERS COUNT
+============================== */
+$claimedStmt = $pdo->prepare("
+    SELECT COUNT(*) 
+    FROM game_winner_queue 
+    WHERE game_id = ? AND claimed = 1
+");
+$claimedStmt->execute([$gameId]);
+$claimedCount = (int) $claimedStmt->fetchColumn();
+
+$totalWinners = (int) $game['winners'];
+
 if (!$game) {
     session_destroy();
     header("Location: index.php");
@@ -39,6 +52,7 @@ if (empty($cards)) {
 
 $drawnNumbers = json_decode($game['drawn_numbers'], true) ?? [];
 $pattern = json_decode($game['pattern'], true) ?? [];
+
 
 ?>
 
@@ -114,10 +128,41 @@ $pattern = json_decode($game['pattern'], true) ?? [];
 <script>
 const drawnNumbers = <?= json_encode($drawnNumbers) ?>;
 const gamePattern = <?= json_encode($pattern) ?>;
+const gameOver = <?= ($claimedCount >= $totalWinners) ? 'true' : 'false' ?>;
 </script>
 <script src="sweetalert\dist\sweetalert2.all.min.js"></script>
 <script>
 document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
+    if (gameOver) {
+        // Disable all cells
+        card.querySelectorAll('.bingo-cell').forEach(cell => {
+            cell.style.pointerEvents = 'none';
+            cell.classList.add('opacity-50');
+        });
+
+        const bingoButton = card.querySelector('.bingo-btn');
+        if (bingoButton) {
+            bingoButton.disabled = true;
+            bingoButton.classList.remove('bounce-btn');
+        }
+
+        // Show alert only once
+        if (!window.gameOverShown) {
+            window.gameOverShown = true;
+
+            Swal.fire({
+                icon: 'info',
+                title: 'Game Over!',
+                text: 'All winners have already been claimed.',
+                confirmButtonColor: '#764ba2',
+                confirmButtonText: 'Back to Main Menu'
+            }).then(() => {
+                window.location.href = 'index.php'; // change if your main menu is different
+            });
+        }
+
+        return; // Stop further logic
+    }
 
     const cells = card.querySelectorAll('.bingo-cell');
     const bingoButton = card.querySelector('.bingo-btn');
@@ -260,6 +305,7 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
     }
 
 });
+
 </script>
 
 </body>
