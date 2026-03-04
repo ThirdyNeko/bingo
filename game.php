@@ -128,41 +128,53 @@ $pattern = json_decode($game['pattern'], true) ?? [];
 <script>
 const drawnNumbers = <?= json_encode($drawnNumbers) ?>;
 const gamePattern = <?= json_encode($pattern) ?>;
-const gameOver = <?= ($claimedCount >= $totalWinners) ? 'true' : 'false' ?>;
+let gameOver = <?= ($claimedCount >= $totalWinners) ? 'true' : 'false' ?>; // initial state from PHP
+let previousGameOver = gameOver; // remember previous state
 </script>
 <script src="sweetalert\dist\sweetalert2.all.min.js"></script>
 <script>
 document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
-    if (gameOver) {
-        // Disable all cells
-        card.querySelectorAll('.bingo-cell').forEach(cell => {
-            cell.style.pointerEvents = 'none';
-            cell.classList.add('opacity-50');
-        });
+    let previousGameOver = false;
 
-        const bingoButton = card.querySelector('.bingo-btn');
-        if (bingoButton) {
-            bingoButton.disabled = true;
-            bingoButton.classList.remove('bounce-btn');
+    async function checkGameOverOnce() {
+        try {
+            const res = await fetch('check_game_over.php');
+            const data = await res.json();
+            const gameOver = data.gameOver;
+
+            if (!previousGameOver && gameOver) {
+                window.gameOverShown = true;
+
+                // Disable all cells
+                document.querySelectorAll('.bingo-cell').forEach(cell => {
+                    cell.style.pointerEvents = 'none';
+                    cell.classList.add('opacity-50');
+                });
+
+                // Disable all bingo buttons
+                document.querySelectorAll('.bingo-btn').forEach(btn => {
+                    btn.disabled = true;
+                    btn.classList.remove('bounce-btn');
+                });
+
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Game Over!',
+                    text: 'All winners have already been claimed.',
+                    confirmButtonColor: '#764ba2',
+                    confirmButtonText: 'Back to Main Menu'
+                }).then(() => {
+                    window.location.href = 'index.php';
+                });
+            }
+
+            previousGameOver = gameOver;
+        } catch (err) {
+            console.error(err);
         }
-
-        // Show alert only once
-        if (!window.gameOverShown) {
-            window.gameOverShown = true;
-
-            Swal.fire({
-                icon: 'info',
-                title: 'Game Over!',
-                text: 'All winners have already been claimed.',
-                confirmButtonColor: '#764ba2',
-                confirmButtonText: 'Back to Main Menu'
-            }).then(() => {
-                window.location.href = 'index.php'; // change if your main menu is different
-            });
-        }
-
-        return; // Stop further logic
     }
+
+    setInterval(checkGameOverOnce, 5000);
 
     const cells = card.querySelectorAll('.bingo-cell');
     const bingoButton = card.querySelector('.bingo-btn');
