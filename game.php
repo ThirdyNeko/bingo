@@ -204,8 +204,36 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
         verifyBingo();
     }
 
-    async function verifyBingo() {
+    cells.forEach(cell => {
+        cell.addEventListener('click', () => {
+            const number = parseInt(cell.dataset.number);
 
+            // ❌ Check if number is drawn
+            if (!drawnNumbers.includes(number)) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Not Drawn!',
+                    text: 'You cannot mark this number yet.',
+                    timer: 1200,
+                    showConfirmButton: false
+                });
+                return; // stop marking
+            }
+
+            // ✅ Normal marking
+            cell.classList.toggle('marked');
+
+            if (cell.classList.contains('marked')) manualMarks.add(number);
+            else manualMarks.delete(number);
+
+            localStorage.setItem(storageKey, JSON.stringify(Array.from(manualMarks)));
+
+            // ✅ Verify bingo after marking
+            verifyBingo();
+        });
+    });
+
+    async function verifyBingo() {
         const res = await fetch(`check_bingo.php?cardIndex=${cardIndex}`);
         const data = await res.json();
 
@@ -213,34 +241,22 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
             bingoButton.classList.remove('d-none');
         } else {
             bingoButton.classList.add('d-none');
-        }
-    }
 
-    // Handle clicks
-    cells.forEach(cell => {
-        cell.addEventListener('click', () => {
-            const number = parseInt(cell.dataset.number);
+            // ❗ Extra cheating detection (they marked numbers not drawn)
+            const markedNumbers = Array.from(cells)
+                .filter(c => c.classList.contains('marked'))
+                .map(c => parseInt(c.dataset.number));
 
-            // Check if number is drawn
-            if (drawnNumbers.includes(number)) {
-                cell.classList.toggle('marked');
-
-                if (cell.classList.contains('marked')) manualMarks.add(number);
-                else manualMarks.delete(number);
-
-                localStorage.setItem(storageKey, JSON.stringify(Array.from(manualMarks)));
-
-                verifyBingo();
-            } else {
+            if (markedNumbers.some(n => !drawnNumbers.includes(n))) {
                 Swal.fire({
-                    icon: 'error',
-                    title: 'Not Drawn!',
-                    timer: 1200,
-                    showConfirmButton: false
+                    icon: 'warning',
+                    title: 'Cheating Detected!',
+                    text: 'Some of your marked numbers have not been drawn yet.',
+                    confirmButtonColor: '#764ba2',
                 });
             }
-        });
-    });
+        }
+    }
 
     // Restore marks on page load
     restoreMarks();
