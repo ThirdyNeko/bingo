@@ -201,28 +201,19 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
                 cell.classList.remove('marked');
             }
         });
-        checkPattern();
+        verifyBingo();
     }
 
-    function checkPattern() {
-        if (!bingoButton) return;
+    async function verifyBingo() {
 
-        let matched = true;
+        const res = await fetch(`check_bingo.php?cardIndex=${cardIndex}`);
+        const data = await res.json();
 
-        cells.forEach(cell => {
-            const row = parseInt(cell.dataset.row);
-            const col = parseInt(cell.dataset.colIndex);
-
-            if (!gamePattern[row]) return;
-
-            if (gamePattern[row][col] === 1) {
-                if (row === 2 && col === 2) return; // FREE space
-                if (!cell.classList.contains('marked')) matched = false;
-            }
-        });
-
-        if (matched) bingoButton.classList.remove('d-none');
-        else bingoButton.classList.add('d-none');
+        if (data.bingo) {
+            bingoButton.classList.remove('d-none');
+        } else {
+            bingoButton.classList.add('d-none');
+        }
     }
 
     // Handle clicks
@@ -239,7 +230,7 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
 
                 localStorage.setItem(storageKey, JSON.stringify(Array.from(manualMarks)));
 
-                checkPattern();
+                verifyBingo();
             } else {
                 Swal.fire({
                     icon: 'error',
