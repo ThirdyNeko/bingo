@@ -51,7 +51,52 @@ $stmt->execute([$userId]);
 $userIdNumber = $stmt->fetchColumn();
 
 if (empty($cards)) {
-    die("No cards assigned yet. Please wait for the host to start.");
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Game Already Started</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/design.css" rel="stylesheet">
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container text-center">
+
+    <div class="card bg-secondary bg-opacity-10 border-0 shadow-lg p-4 rounded-4">
+
+        <h2 class="mb-3">⏰ Too Late!</h2>
+
+        <p class="mb-3">
+            You weren't able to join the game in time.<br>
+            The host has already started the game and cards were already distributed.
+        </p>
+
+        <a href="index.php" class="btn btn-light mt-2">
+            Back to Main Menu
+        </a>
+
+    </div>
+
+</div>
+
+</body>
+</html>
+<?php
+exit;
 }
 
 $drawnNumbers = json_decode($game['drawn_numbers'], true) ?? [];
@@ -288,6 +333,22 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
 
     pollNewNumbers(); // Start long-polling
 
+    function disableAllCards() {
+
+        // Disable all cells
+        document.querySelectorAll('.bingo-cell').forEach(cell => {
+            cell.style.pointerEvents = 'none';
+            cell.classList.add('opacity-50');
+        });
+
+        // Disable all bingo buttons
+        document.querySelectorAll('.bingo-btn').forEach(btn => {
+            btn.disabled = true;
+            btn.classList.remove('bounce-btn');
+        });
+
+    }
+
     // ----- Handle Bingo button click -----
     if (bingoButton) {
         bingoButton.addEventListener('click', async () => {
@@ -307,6 +368,7 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
                 const data = await res.json();
 
                 if (data.success) {
+                    disableAllCards();
 
                     // 🎉 Launch confetti
                     const duration = 3000;
