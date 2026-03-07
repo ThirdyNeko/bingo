@@ -46,6 +46,10 @@ $stmt = $pdo->prepare("SELECT card_data FROM user_cards WHERE user_id = ? AND ga
 $stmt->execute([$userId, $gameId]);
 $cards = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
+$stmt = $pdo->prepare("SELECT id_number FROM users WHERE id = ?");
+$stmt->execute([$userId]);
+$userIdNumber = $stmt->fetchColumn();
+
 if (empty($cards)) {
     die("No cards assigned yet. Please wait for the host to start.");
 }
@@ -82,7 +86,10 @@ $pattern = json_decode($game['pattern'], true) ?? [];
         <?php $card = json_decode($cardJson, true); ?>
         <div class="card shadow-lg bingo-card mb-5">
             <div class="card-body">
-                <h5 class="mb-3">Card <?= $index + 1 ?></h5>
+                <h5 class="mb-3">
+                    Card <?= $index + 1 ?>
+                    <span class="badge bg-warning text-dark">ID: <?= $userIdNumber ?></span>
+                </h5>
                 <table class="table table-bordered text-center bingo-table mb-0">
                     <thead class="table-dark">
                         <tr>

@@ -35,23 +35,27 @@ if (!$game) {
 
 <div class="container text-center">
 
-    <div class="card bg-secondary bg-opacity-10 border-0 shadow-lg p-4 rounded-4">
+    <div class="card bg-dark bg-opacity-50 border-0 shadow-lg p-4 rounded-4 text-white">
 
         <h2 class="mb-3">🎉 You're in!</h2>
 
         <p class="mb-1">
-            <strong>Player:</strong> <?= htmlspecialchars($_SESSION['name']) ?>
+            <strong class="text-info">Player:</strong>
+            <?= htmlspecialchars($_SESSION['name']) ?>
         </p>
 
         <p class="mb-3">
-            <strong>Game Code:</strong> <?= htmlspecialchars($_SESSION['game_code']) ?>
+            <strong class="text-info">Game Code:</strong>
+            <span class="badge bg-warning text-dark">
+                <?= htmlspecialchars($_SESSION['game_code']) ?>
+            </span>
         </p>
 
-        <div class="spinner-border text-success mb-3" role="status"></div>
+        <div class="spinner-border text-warning mb-3" role="status"></div>
 
         <h5 class="text-warning">Waiting for host to start the game...</h5>
 
-        <p class="text-muted small mt-3">
+        <p class="text-light small mt-3">
             The game will begin automatically.
         </p>
 
