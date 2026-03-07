@@ -132,6 +132,7 @@ let gameOver = <?= ($claimedCount >= $totalWinners) ? 'true' : 'false' ?>; // in
 let previousGameOver = gameOver; // remember previous state
 </script>
 <script src="sweetalert\dist\sweetalert2.all.min.js"></script>
+<script src="js/confetti.min.js"></script>
 <script>
 document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
     let previousGameOver = false;
@@ -299,12 +300,30 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
                 const data = await res.json();
 
                 if (data.success) {
+
+                    // 🎉 Launch confetti
+                    const duration = 3000;
+                    const end = Date.now() + duration;
+
+                    (function frame() {
+                        confetti({
+                            particleCount: 3,
+                            spread: 90,
+                            origin: { x: Math.random(), y: 0 }
+                        });
+
+                        if (Date.now() < end) {
+                            requestAnimationFrame(frame);
+                        }
+                    })();
+
                     Swal.fire({
                         icon: 'success',
                         title: 'Bingo claimed!',
                         text: data.message || '',
                     });
-                    bingoButton.disabled = true; // prevent double claiming
+
+                    bingoButton.disabled = true;
                 } else {
                     Swal.fire({
                         icon: 'error',
