@@ -46,9 +46,12 @@ $stmt = $pdo->prepare("SELECT card_data FROM user_cards WHERE user_id = ? AND ga
 $stmt->execute([$userId, $gameId]);
 $cards = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-$stmt = $pdo->prepare("SELECT id_number FROM users WHERE id = ?");
+$stmt = $pdo->prepare("SELECT id_number, auto_mode FROM users WHERE id = ?");
 $stmt->execute([$userId]);
-$userIdNumber = $stmt->fetchColumn();
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+$userIdNumber = $user['id_number'];
+$autoMode = (bool)$user['auto_mode'];
 
 if (empty($cards)) {
 ?>
@@ -150,7 +153,7 @@ $pattern = json_decode($game['pattern'], true) ?? [];
                         <tr>
                             <?php foreach (['B','I','N','G','O'] as $col): ?>
                                 <?php if ($row == 2 && $col == 'N'): ?>
-                                    <td class="free marked">FREE</td>
+                                    <td class="free marked" data-row="2" data-col-index="2">FREE</td>
                                 <?php else: ?>
                                     <td 
                                         class="bingo-cell"
@@ -180,6 +183,7 @@ $pattern = json_decode($game['pattern'], true) ?? [];
 <script>
 const drawnNumbers = <?= json_encode($drawnNumbers) ?>;
 const gamePattern = <?= json_encode($pattern) ?>;
+const autoMode = <?= $autoMode ? 'true' : 'false' ?>;
 let gameOver = <?= ($claimedCount >= $totalWinners) ? 'true' : 'false' ?>; // initial state from PHP
 let previousGameOver = gameOver; // remember previous state
 </script>
@@ -287,30 +291,42 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
     });
 
     async function verifyBingo() {
+
         const res = await fetch(`check_bingo.php?cardIndex=${cardIndex}`);
         const data = await res.json();
 
-        if (data.bingo) {
+        if (!data.bingo) {
+            bingoButton.classList.add('d-none');
+            return;
+        }
+
+        let patternMarked = true;
+
+        for (let row = 0; row < 5; row++) {
+            for (let col = 0; col < 5; col++) {
+
+                if (gamePattern[row][col] === 1) {
+
+                    const cell = Array.from(cells).find(c =>
+                        parseInt(c.dataset.row) === row &&
+                        parseInt(c.dataset.colIndex) === col
+                    );
+
+                    if (!cell || !cell.classList.contains('marked')) {
+                        patternMarked = false;
+                    }
+
+                }
+
+            }
+        }
+
+        if (patternMarked) {
             bingoButton.classList.remove('d-none');
         } else {
             bingoButton.classList.add('d-none');
-
-            // ❗ Extra cheating detection (they marked numbers not drawn)
-            const markedNumbers = Array.from(cells)
-                .filter(c => c.classList.contains('marked'))
-                .map(c => parseInt(c.dataset.number));
-
-            if (markedNumbers.some(n => !drawnNumbers.includes(n))) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Cheating Detected!',
-                    text: 'Some of your marked numbers have not been drawn yet.',
-                    confirmButtonColor: '#764ba2',
-                });
-            }
         }
     }
-
     // Restore marks on page load
     restoreMarks();
 
@@ -321,7 +337,28 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
             const data = await res.json();
 
             if (data.newNumbers.length > 0) {
-                data.newNumbers.forEach(n => drawnNumbers.push(n));
+
+                data.newNumbers.forEach(n => {
+                    drawnNumbers.push(n);
+
+                    // ✅ Auto mark numbers if auto mode
+                    if (autoMode) {
+                        cells.forEach(cell => {
+                            const number = parseInt(cell.dataset.number);
+
+                            if (number === n) {
+                                cell.classList.add('marked');
+                                manualMarks.add(number);
+                            }
+                        });
+                    }
+
+                });
+
+                localStorage.setItem(storageKey, JSON.stringify(Array.from(manualMarks)));
+
+                verifyBingo();
+
                 lastNumber = Math.max(...drawnNumbers);
             }
         } catch (err) {
