@@ -48,15 +48,44 @@ if (!empty(array_diff($patternNumbers, $markedNumbers))) {
     exit;
 }
 
-// ✅ Only mark the card as claimed in the winner queue
+// Get user name
+$stmt = $pdo->prepare("SELECT name FROM users WHERE id = ?");
+$stmt->execute([$userId]);
+$userName = $stmt->fetchColumn();
+
+// Get current winners
+$stmt = $pdo->prepare("SELECT game_winners FROM game WHERE id = ?");
+$stmt->execute([$gameId]);
+$current = $stmt->fetchColumn();
+
+// Decode existing array
+$winners = [];
+if ($current) {
+    $decoded = json_decode($current, true);
+    if (is_array($decoded)) {
+        $winners = $decoded;
+    }
+}
+
+// Prevent duplicates
+if (!in_array($userName, $winners)) {
+    $winners[] = $userName;
+}
+
+// Save updated array
+$stmt = $pdo->prepare("UPDATE game SET game_winners = ? WHERE id = ?");
+$stmt->execute([json_encode($winners), $gameId]);
+
+// Mark the card as claimed
 $pdo->prepare("UPDATE game_winner_queue SET claimed = 1 WHERE game_id = ? AND card_id = ?")
     ->execute([$gameId, $card['id']]);
 
-// ➕ Add 1 win to the user
-$pdo->prepare("
-    UPDATE users
-    SET wins = wins + 1
-    WHERE id = ?
-")->execute([$userId]);
+// Add 1 win to the user
+$pdo->prepare("UPDATE users SET wins = wins + 1 WHERE id = ?")
+    ->execute([$userId]);
 
-echo json_encode(['success' => true, 'message' => 'Bingo claimed!']);
+echo json_encode([
+    'success' => true,
+    'message' => 'Bingo claimed!',
+    'winners' => $winners
+]);
