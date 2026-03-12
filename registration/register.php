@@ -4,11 +4,19 @@ require_once '../config/db.php';
 $success = '';
 $error = '';
 
+if (isset($_GET['success'])) {
+    $success = "Registration successful!";
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $name = trim($_POST['name']);
     $idNumber = trim($_POST['id_number']);
     $department = trim($_POST['department']);
+    
+    if ($name === '' || $idNumber === '' || $department === '') {
+        $error = "All fields are required.";
+    }
 
     // Check duplicate ID
     $check = $pdo->prepare("SELECT id FROM users WHERE id_number = ?");
@@ -21,11 +29,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("
             INSERT INTO users 
             (name, id_number, department, role, wins, current_game, auto_mode, card_count)
-            VALUES (?, ?, ?, 'Player', 0, NULL, 0, 1)
+            VALUES (?, ?, ?, 'player', 0, NULL, 0, 1)
         ");
 
         if ($stmt->execute([$name, $idNumber, $department])) {
-            $success = "Registration successful!";
+
+            // Redirect to avoid form resubmission
+            header("Location: register.php?success=1");
+            exit;
+
         } else {
             $error = "Something went wrong.";
         }
@@ -50,11 +62,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <h4 class="text-center mb-4">Venue Registration</h4>
 
                     <?php if ($success): ?>
-                        <div class="alert alert-success"><?= $success ?></div>
+                        <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
                     <?php endif; ?>
 
                     <?php if ($error): ?>
-                        <div class="alert alert-danger"><?= $error ?></div>
+                        <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
                     <?php endif; ?>
 
                     <form method="POST">
