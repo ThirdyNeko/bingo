@@ -359,8 +359,8 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
         } catch (err) {
             console.error(err);
         } finally {
-            // Poll again after 500ms (non-blocking)
-            setTimeout(() => pollNewNumbers(lastNumber), 500);
+            // Poll again after 1000ms (non-blocking)
+            setTimeout(() => pollNewNumbers(lastNumber), 1000);
         }
     }
 
