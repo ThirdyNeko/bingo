@@ -8,6 +8,8 @@ if (!isset($_SESSION['game_id'])) {
     exit;
 }
 
+header('Content-Type: application/json');
+
 $gameId = $_SESSION['game_id'];
 
 // Client sends last known numbers as comma-separated list
@@ -28,16 +30,16 @@ while (true) {
     $newNumbers = array_values(array_diff($drawnNumbers, $lastNumbers));
 
     if (!empty($newNumbers)) {
-        header('Content-Type: application/json');
         echo json_encode(['newNumbers' => $newNumbers]);
         exit;
     }
 
+    // Timeout
     if ((time() - $startTime) >= $timeout) {
-        header('Content-Type: application/json');
         echo json_encode(['newNumbers' => []]);
         exit;
     }
 
-    usleep(500000); // 0.5s
+    // Sleep 0.5s
+    usleep(500000);
 }

@@ -28,7 +28,8 @@ $stmt = $pdo->prepare("
 SELECT card_data 
 FROM user_cards 
 WHERE user_id=? AND game_id=?
-LIMIT 1 OFFSET ?
+ORDER BY id
+OFFSET ? ROWS FETCH NEXT 1 ROWS ONLY
 ");
 $stmt->execute([$userId, $gameId, $cardIndex]);
 

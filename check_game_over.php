@@ -3,7 +3,12 @@ session_name('Bingo');
 session_start();
 require 'config/db.php';
 
-$gameId = $_SESSION['game_id'] ?? 0;
+if (!isset($_SESSION['game_id'])) {
+    echo json_encode(['gameOver' => false]);
+    exit;
+}
+
+$gameId = $_SESSION['game_id'];
 
 // Fetch total winners from game
 $stmt = $pdo->prepare("SELECT winners FROM game WHERE id = ?");
@@ -21,7 +26,7 @@ $totalWinners = (int)$game['winners'];
 $claimedStmt = $pdo->prepare("
     SELECT COUNT(*) 
     FROM game_winner_queue 
-    WHERE game_id = ? AND claimed != 0
+    WHERE game_id = ? AND claimed = 1
 ");
 $claimedStmt->execute([$gameId]);
 $claimedCount = (int)$claimedStmt->fetchColumn();
