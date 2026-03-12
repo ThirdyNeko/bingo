@@ -24,9 +24,10 @@ while (true) {
     $stmt->execute([$gameId]);
     $game = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    $drawnNumbers = json_decode($game['drawn_numbers'], true) ?? [];
+    // ✅ Null-safe decode & cast to integers
+    $drawnNumbers = array_map('intval', json_decode($game['drawn_numbers'] ?? '[]', true));
 
-    // Send numbers the client hasn't seen yet
+    // Find numbers the client hasn't seen yet
     $newNumbers = array_values(array_diff($drawnNumbers, $lastNumbers));
 
     if (!empty($newNumbers)) {

@@ -5,19 +5,18 @@ require_once 'config/db.php';
 
 header('Content-Type: application/json');
 
+// 1️⃣ Validate session
 if (!isset($_SESSION['game_id'], $_SESSION['user_id'])) {
     echo json_encode(['success'=>false,'message'=>'Session invalid']);
     exit;
 }
 
-$gameId = $_SESSION['game_id'];
-$userId = $_SESSION['user_id'];
+$gameId = (int)$_SESSION['game_id'];
+$userId = (int)$_SESSION['user_id'];
 
-/* ===============================
-   READ INPUT
-================================ */
+// 2️⃣ Read input
 $input = json_decode(file_get_contents('php://input'), true);
-$cardIndex = (int)($input['cardIndex'] ?? 0);
+$cardIndex = max(0, (int)($input['cardIndex'] ?? 0));
 $markedNumbers = $input['markedNumbers'] ?? [];
 
 if (!is_array($markedNumbers)) {
@@ -25,21 +24,27 @@ if (!is_array($markedNumbers)) {
     exit;
 }
 
+// Ensure integers only
+$markedNumbers = array_map('intval', $markedNumbers);
+
 try {
-    // Start transaction
+    // 3️⃣ Start transaction
     $pdo->beginTransaction();
 
     // -----------------------------
-    // Fetch the user's card with lock
+    // Fetch user card (SQL Server OFFSET FETCH)
     // -----------------------------
+    $cardIndex = (int)$cardIndex; // ensure integer
     $stmt = $pdo->prepare("
         SELECT id, card_data
-        FROM user_cards
-        WHERE user_id = ? AND game_id = ?
-        ORDER BY id
-        OFFSET ? ROWS FETCH NEXT 1 ROWS ONLY
+        FROM (
+            SELECT ROW_NUMBER() OVER (ORDER BY id) AS rn, id, card_data
+            FROM user_cards
+            WHERE user_id = ? AND game_id = ?
+        ) AS t
+        WHERE rn = ?
     ");
-    $stmt->execute([$userId, $gameId, $cardIndex]);
+    $stmt->execute([$userId, $gameId, $cardIndex + 1]);
     $card = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$card) {
@@ -48,21 +53,24 @@ try {
         exit;
     }
 
-    $cardData = json_decode($card['card_data'], true);
-    if (!$cardData) {
+    // -----------------------------
+    // Decode card data safely
+    // -----------------------------
+    $cardDataJson = trim($card['card_data'] ?? '');
+    $cardData = !empty($cardDataJson) ? json_decode($cardDataJson, true) : [];
+    if (!is_array($cardData)) {
         $pdo->rollBack();
         echo json_encode(['success'=>false,'message'=>'Invalid card data']);
         exit;
     }
 
     // -----------------------------
-    // Lock the game row
+    // Lock game row (SQL Server style)
     // -----------------------------
     $stmt = $pdo->prepare("
         SELECT pattern, winners, game_winners
-        FROM game
-        WHERE id = ? 
-        FOR UPDATE
+        FROM game WITH (UPDLOCK, ROWLOCK)
+        WHERE id = ?
     ");
     $stmt->execute([$gameId]);
     $game = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -73,26 +81,26 @@ try {
         exit;
     }
 
-    $pattern = json_decode($game['pattern'], true);
-    $maxWinners = (int)$game['winners'];
+    $pattern = json_decode($game['pattern'] ?? '[]', true);
+    $maxWinners = (int)($game['winners'] ?? 1);
 
     // -----------------------------
-    // Build required pattern numbers
+    // Build required numbers from pattern (ignore FREE cell)
     // -----------------------------
     $letters = ['B','I','N','G','O'];
     $patternNumbers = [];
 
     foreach ($pattern as $row => $cols) {
         foreach ($cols as $col => $val) {
-            if ($val == 1 && !($row == 2 && $col == 2)) {
+            if ($val == 1 && !($row == 2 && $col == 2)) { // skip FREE
                 $n = $cardData[$letters[$col]][$row] ?? null;
-                if ($n !== null) $patternNumbers[] = $n;
+                if ($n !== null) $patternNumbers[] = (int)$n;
             }
         }
     }
 
     // -----------------------------
-    // Validate pattern
+    // Validate bingo pattern
     // -----------------------------
     if (!empty(array_diff($patternNumbers, $markedNumbers))) {
         $pdo->rollBack();
@@ -105,43 +113,51 @@ try {
     // -----------------------------
     $stmt = $pdo->prepare("SELECT name FROM users WHERE id = ?");
     $stmt->execute([$userId]);
-    $userName = $stmt->fetchColumn();
+    $userName = $stmt->fetchColumn() ?? "Unknown";
 
     // -----------------------------
     // Decode current winners
     // -----------------------------
     $winners = [];
-    if ($game['game_winners']) {
+    if (!empty($game['game_winners'])) {
         $decoded = json_decode($game['game_winners'], true);
         if (is_array($decoded)) $winners = $decoded;
     }
 
-    // Check if max winners reached
     if (count($winners) >= $maxWinners) {
         $pdo->rollBack();
         echo json_encode(['success'=>false,'message'=>'All winners already claimed']);
         exit;
     }
 
-    // Prevent duplicate
     if (!in_array($userName, $winners)) {
         $winners[] = $userName;
     }
 
     // -----------------------------
-    // Mark card as claimed in winner queue
+    // Check and mark card as claimed (cast bit to int)
     // -----------------------------
     $stmt = $pdo->prepare("
-        UPDATE game_winner_queue
-        SET claimed = 1
-        WHERE game_id = ? AND card_id = ? AND claimed = 0
+        SELECT CAST(claimed AS int) AS claimed
+        FROM game_winner_queue
+        WHERE game_id = ? AND card_id = ?
     ");
     $stmt->execute([$gameId, $card['id']]);
-    if ($stmt->rowCount() === 0) {
+    $claimed = (int)$stmt->fetchColumn();
+
+    if ($claimed === 1) {
         $pdo->rollBack();
         echo json_encode(['success'=>false,'message'=>'Card already claimed']);
         exit;
     }
+
+    // Update claimed
+    $stmt = $pdo->prepare("
+        UPDATE game_winner_queue
+        SET claimed = 1
+        WHERE game_id = ? AND card_id = ?
+    ");
+    $stmt->execute([$gameId, $card['id']]);
 
     // -----------------------------
     // Update game winners
@@ -163,7 +179,7 @@ try {
     ");
     $stmt->execute([$userId]);
 
-    // Commit transaction
+    // ✅ Commit transaction
     $pdo->commit();
 
     echo json_encode([
@@ -172,7 +188,28 @@ try {
         'winners' => $winners
     ]);
 
-} catch (PDOException $e) {
+} catch (Exception $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
-    echo json_encode(['success'=>false,'message'=>'Database error','error'=>$e->getMessage()]);
+
+    // Build detailed error info
+    $errorDetails = [
+        'message' => $e->getMessage(),           // Main error message
+        'code'    => $e->getCode(),              // PDO error code
+    ];
+
+    // Include SQLSTATE if available
+    if ($e instanceof PDOException && isset($e->errorInfo)) {
+        $errorDetails['sqlstate'] = $e->errorInfo[0] ?? null;
+        $errorDetails['driverCode'] = $e->errorInfo[1] ?? null;
+        $errorDetails['driverMessage'] = $e->errorInfo[2] ?? null;
+    }
+
+    // Optional: include stack trace in development
+    $errorDetails['trace'] = $e->getTraceAsString();
+
+    echo json_encode([
+        'success' => false,
+        'message' => 'Database error',
+        'error' => $errorDetails
+    ]);
 }

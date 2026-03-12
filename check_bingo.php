@@ -15,33 +15,41 @@ $userId = $_SESSION['user_id'];
 
 $cardIndex = $_GET['cardIndex'] ?? 0;
 
-/* GAME */
+/* =========================
+   FETCH GAME DATA
+========================= */
 $stmt = $pdo->prepare("SELECT drawn_numbers, pattern FROM game WHERE id=?");
 $stmt->execute([$gameId]);
 $game = $stmt->fetch(PDO::FETCH_ASSOC);
 
-$drawnNumbers = json_decode($game['drawn_numbers'], true) ?? [];
-$pattern = json_decode($game['pattern'], true) ?? [];
+// ✅ Ensure null doesn't break json_decode
+$drawnNumbers = array_map('intval', json_decode($game['drawn_numbers'] ?? '[]', true));
+$pattern = json_decode($game['pattern'] ?? '[]', true);
 
-/* CARD */
+/* =========================
+   FETCH PLAYER CARD
+========================= */
 $stmt = $pdo->prepare("
-SELECT card_data 
-FROM user_cards 
-WHERE user_id=? AND game_id=?
-ORDER BY id
-OFFSET ? ROWS FETCH NEXT 1 ROWS ONLY
+    SELECT card_data 
+    FROM user_cards 
+    WHERE user_id=? AND game_id=?
+    ORDER BY id
+    OFFSET ? ROWS FETCH NEXT 1 ROWS ONLY
 ");
 $stmt->execute([$userId, $gameId, $cardIndex]);
 
 $cardJson = $stmt->fetchColumn();
 
 if (!$cardJson) {
-    echo json_encode(['bingo'=>false]);
+    echo json_encode(['bingo' => false]);
     exit;
 }
 
 $card = json_decode($cardJson, true);
 
+/* =========================
+   CHECK FOR BINGO
+========================= */
 $columns = ['B','I','N','G','O'];
 $bingo = true;
 
@@ -50,11 +58,12 @@ foreach ($pattern as $row => $cols) {
 
         if ($required == 1) {
 
+            // Skip center free cell
             if ($row == 2 && $col == 2) continue;
 
-            $number = $card[$columns[$col]][$row];
+            $number = (int)$card[$columns[$col]][$row]; // cast to int
 
-            if (!in_array($number, $drawnNumbers)) {
+            if (!in_array($number, $drawnNumbers, true)) { // strict comparison
                 $bingo = false;
                 break 2;
             }
@@ -62,4 +71,4 @@ foreach ($pattern as $row => $cols) {
     }
 }
 
-echo json_encode(['bingo'=>$bingo]);
+echo json_encode(['bingo' => $bingo]);

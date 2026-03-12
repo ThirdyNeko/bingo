@@ -102,8 +102,8 @@ if (empty($cards)) {
 exit;
 }
 
-$drawnNumbers = json_decode($game['drawn_numbers'], true) ?? [];
-$pattern = json_decode($game['pattern'], true) ?? [];
+$drawnNumbers = array_map('intval', json_decode($game['drawn_numbers'] ?? '[]', true));
+$pattern = json_decode($game['pattern'] ?? '[]', true) ?? [];
 
 
 ?>
@@ -291,15 +291,6 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
     });
 
     async function verifyBingo() {
-
-        const res = await fetch(`check_bingo.php?cardIndex=${cardIndex}`);
-        const data = await res.json();
-
-        if (!data.bingo) {
-            bingoButton.classList.add('d-none');
-            return;
-        }
-
         let patternMarked = true;
 
         for (let row = 0; row < 5; row++) {
@@ -307,24 +298,34 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
 
                 if (gamePattern[row][col] === 1) {
 
+                    // FREE cell is always considered marked
+                    if (row === 2 && col === 2) continue;
+
                     const cell = Array.from(cells).find(c =>
                         parseInt(c.dataset.row) === row &&
                         parseInt(c.dataset.colIndex) === col
                     );
 
-                    if (!cell || !cell.classList.contains('marked')) {
-                        patternMarked = false;
-                    }
+                    const number = parseInt(cell?.dataset.number ?? -1);
 
+                    // Check if number is marked or in drawnNumbers if autoMode
+                    if (!cell || (!cell.classList.contains('marked') && (!autoMode || !drawnNumbers.includes(number)))) {
+                        patternMarked = false;
+                        break;
+                    }
                 }
 
             }
+
+            if (!patternMarked) break;
         }
 
         if (patternMarked) {
             bingoButton.classList.remove('d-none');
+            bingoButton.classList.add('bounce-btn');
         } else {
             bingoButton.classList.add('d-none');
+            bingoButton.classList.remove('bounce-btn');
         }
     }
     // Restore marks on page load
@@ -337,38 +338,33 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
             const data = await res.json();
 
             if (data.newNumbers.length > 0) {
-
                 data.newNumbers.forEach(n => {
                     drawnNumbers.push(n);
 
-                    // ✅ Auto mark numbers if auto mode
                     if (autoMode) {
                         cells.forEach(cell => {
                             const number = parseInt(cell.dataset.number);
-
                             if (number === n) {
                                 cell.classList.add('marked');
                                 manualMarks.add(number);
                             }
                         });
                     }
-
                 });
 
                 localStorage.setItem(storageKey, JSON.stringify(Array.from(manualMarks)));
-
                 verifyBingo();
-
                 lastNumber = Math.max(...drawnNumbers);
             }
         } catch (err) {
             console.error(err);
         } finally {
-            pollNewNumbers(lastNumber); // Immediately poll again
+            // Poll again after 500ms (non-blocking)
+            setTimeout(() => pollNewNumbers(lastNumber), 500);
         }
     }
 
-    pollNewNumbers(); // Start long-polling
+    pollNewNumbers(); // start polling
 
     function disableAllCards() {
 
@@ -402,7 +398,20 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
                         markedNumbers: markedNumbers
                     })
                 });
-                const data = await res.json();
+
+                // Parse JSON safely
+                let data;
+                try {
+                    data = await res.json();
+                } catch (jsonErr) {
+                    console.error('JSON parse error:', jsonErr);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Invalid response',
+                        text: await res.text(),
+                    });
+                    return;
+                }
 
                 if (data.success) {
                     disableAllCards();
@@ -410,17 +419,13 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
                     // 🎉 Launch confetti
                     const duration = 3000;
                     const end = Date.now() + duration;
-
                     (function frame() {
                         confetti({
                             particleCount: 3,
                             spread: 90,
                             origin: { x: Math.random(), y: 0 }
                         });
-
-                        if (Date.now() < end) {
-                            requestAnimationFrame(frame);
-                        }
+                        if (Date.now() < end) requestAnimationFrame(frame);
                     })();
 
                     Swal.fire({
@@ -430,19 +435,27 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
                     });
 
                     bingoButton.disabled = true;
+
                 } else {
+                    // Show full server error if exists
+                    let errorText = data.message || 'Cannot claim bingo now.';
+                    if (data.error) {
+                        errorText += '\n\n' + JSON.stringify(data.error, null, 2);
+                    }
+
                     Swal.fire({
                         icon: 'error',
                         title: 'Oops!',
-                        text: data.message || 'Cannot claim bingo now.',
+                        html: `<pre style="text-align:left;white-space:pre-wrap;">${errorText}</pre>`,
                     });
                 }
+
             } catch (err) {
                 console.error(err);
                 Swal.fire({
                     icon: 'error',
-                    title: 'Error',
-                    text: 'Something went wrong while claiming bingo.',
+                    title: 'Fetch Error',
+                    text: err.message || 'Something went wrong while claiming bingo.',
                 });
             }
         });
