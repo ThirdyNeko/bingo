@@ -18,7 +18,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "All fields are required.";
     }
 
-    // Check duplicate ID
     $check = $pdo->prepare("SELECT id FROM users WHERE id_number = ?");
     $check->execute([$idNumber]);
 
@@ -33,11 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ");
 
         if ($stmt->execute([$name, $idNumber, $department])) {
-
-            // Redirect to avoid form resubmission
             header("Location: register.php?success=1");
             exit;
-
         } else {
             $error = "Something went wrong.";
         }
@@ -46,44 +42,105 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Venue Registration</title>
-    <link href="../css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
+<meta charset="UTF-8">
+<title>Venue Registration</title>
 
-<div class="container py-5">
+<!-- MOBILE SUPPORT -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link href="../css/bootstrap.min.css" rel="stylesheet">
+
+<style>
+body{
+    min-height:100vh;
+}
+
+.card{
+    border:0;
+}
+
+.form-control{
+    height:48px;
+    font-size:16px; /* prevents zoom on iOS */
+}
+
+button{
+    height:48px;
+    font-size:16px;
+}
+
+@media (max-width:576px){
+    .container{
+        padding-left:15px;
+        padding-right:15px;
+    }
+}
+</style>
+
+</head>
+
+<body class="bg-light d-flex align-items-center">
+
+<div class="container">
     <div class="row justify-content-center">
-        <div class="col-md-6 col-lg-5">
+        <div class="col-12 col-sm-10 col-md-6 col-lg-5">
+
             <div class="card shadow rounded-4">
                 <div class="card-body p-4">
 
                     <h4 class="text-center mb-4">Venue Registration</h4>
 
                     <?php if ($success): ?>
-                        <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
+                        <div class="alert alert-success">
+                            <?= htmlspecialchars($success) ?>
+                        </div>
                     <?php endif; ?>
 
                     <?php if ($error): ?>
-                        <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+                        <div class="alert alert-danger">
+                            <?= htmlspecialchars($error) ?>
+                        </div>
                     <?php endif; ?>
 
                     <form method="POST">
 
                         <div class="mb-3">
                             <label class="form-label">Full Name</label>
-                            <input type="text" name="name" class="form-control" required>
+                            <input 
+                                type="text" 
+                                name="name" 
+                                class="form-control"
+                                placeholder="Enter full name"
+                                autocomplete="name"
+                                required
+                            >
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">ID Number</label>
-                            <input type="text" name="id_number" class="form-control" required>
+                            <input 
+                                type="text" 
+                                name="id_number" 
+                                class="form-control"
+                                placeholder="Enter ID number"
+                                inputmode="numeric"
+                                autocomplete="off"
+                                autocapitalize="off"
+                                required
+                            >
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Department</label>
-                            <input type="text" name="department" class="form-control" required>
+                            <input 
+                                type="text" 
+                                name="department" 
+                                class="form-control"
+                                placeholder="Enter department"
+                                required
+                            >
                         </div>
 
                         <button type="submit" class="btn btn-primary w-100 rounded-3">
@@ -94,6 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 </div>
             </div>
+
         </div>
     </div>
 </div>
