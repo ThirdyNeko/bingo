@@ -1,6 +1,6 @@
 <?php
 
-$pageUrl = "http://192.168.40.14/bingo/registration/register.php";
+$pageUrl = "http://localhost/bingo/registration/register.php";
 
 $qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" . urlencode($pageUrl);
 
