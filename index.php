@@ -14,11 +14,14 @@ $isFromQR = !empty($qrGameCode);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // If QR was used, trust POST but fallback to GET
-    $game_code = trim($_POST['game_code'] ?? $qrGameCode);
-    $id_number = trim($_POST['id_number'] ?? '');
+    $game_code   = trim($_POST['game_code'] ?? $qrGameCode);
+    $first_name  = mb_strtoupper(trim($_POST['first_name'] ?? ''));
+    $middle_name = mb_strtoupper(trim($_POST['middle_name'] ?? ''));
+    $last_name   = mb_strtoupper(trim($_POST['last_name'] ?? ''));
+    $department  = mb_strtoupper(trim($_POST['department'] ?? ''));
 
-    if (empty($game_code) || empty($id_number)) {
-        $error = "All fields are required.";
+    if (empty($game_code) || empty($first_name) || empty($middle_name) || empty($last_name) || empty($department)) {
+        $error = "First Name, Middle Name, Last Name, and Department are required.";
     } else {
 
         // 1️⃣ Check Game
@@ -30,29 +33,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "Invalid Game Code.";
         } else {
 
-            // 2️⃣ Check User
-            $stmt = $pdo->prepare("SELECT * FROM users WHERE id_number = ?");
-            $stmt->execute([$id_number]);
+            // 2️⃣ Check User by First/Middle/Last Name + Department
+            $stmt = $pdo->prepare("
+                SELECT * FROM users
+                WHERE UPPER(LTRIM(RTRIM(first_name)))  = ?
+                  AND UPPER(LTRIM(RTRIM(middle_name)))  = ?
+                  AND UPPER(LTRIM(RTRIM(last_name)))    = ?
+                  AND UPPER(LTRIM(RTRIM(department)))   = ?
+            ");
+            $stmt->execute([$first_name, $middle_name, $last_name, $department]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$user) {
-                $error = "ID Number not found.";
-            } else {
+                // 3️⃣ No matching user — create one
+                $fullName = "$first_name $middle_name $last_name";
 
-                // 3️⃣ Link user to game
-                $update = $pdo->prepare("UPDATE users SET current_game = ? WHERE id_number = ?");
-                $update->execute([$game['id'], $id_number]);
+                // id_number has a UNIQUE constraint and SQL Server only allows one NULL,
+                // so generate a unique placeholder for self-registered users.
+                $generatedIdNumber = 'GEN-' . date('YmdHis') . '-' . random_int(1000, 9999);
 
-                // 4️⃣ Store Session (fixed)
-                $_SESSION['game_id']   = $game['id'];
-                $_SESSION['game_code'] = $game['game_code'];
-                $_SESSION['user_id']   = $user['id'];       // INTERNAL ID, not id_number
-                $_SESSION['name']      = $user['name'];
-                $_SESSION['role']      = $user['role'];
+                $insert = $pdo->prepare("
+                    INSERT INTO users
+                        (name, id_number, first_name, middle_name, last_name, department, role, auto_mode, card_count)
+                    VALUES
+                        (?, ?, ?, ?, ?, ?, 'player', 0, 1)
+                ");
+                $insert->execute([$fullName, $generatedIdNumber, $first_name, $middle_name, $last_name, $department]);
 
-                header("Location: lobby.php");
-                exit;
+                $newUserId = $pdo->lastInsertId();
+
+                $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+                $stmt->execute([$newUserId]);
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
             }
+
+            // 4️⃣ Link user to game
+            $update = $pdo->prepare("UPDATE users SET current_game = ? WHERE id = ?");
+            $update->execute([$game['id'], $user['id']]);
+
+            // 5️⃣ Store Session
+            $_SESSION['game_id']   = $game['id'];
+            $_SESSION['game_code'] = $game['game_code'];
+            $_SESSION['user_id']   = $user['id'];
+            $_SESSION['name']      = $user['name'];
+            $_SESSION['role']      = $user['role'];
+
+            header("Location: lobby.php");
+            exit;
         }
     }
 }
@@ -116,14 +143,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         <?php endif; ?>
 
-                        <div class="mb-4">
-                            <label class="form-label fw-semibold">ID Number</label>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">First Name</label>
                             <input 
                                 type="text" 
-                                name="id_number"
-                                id="id_number"
+                                name="first_name"
+                                id="first_name"
                                 class="form-control form-control-lg text-center"
-                                placeholder="Enter ID Number"
+                                placeholder="Enter First Name"
+                                required
+                            >
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Middle Name</label>
+                            <input 
+                                type="text" 
+                                name="middle_name"
+                                id="middle_name"
+                                class="form-control form-control-lg text-center"
+                                placeholder="Enter Middle Name"
+                                required
+                            >
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Last Name</label>
+                            <input 
+                                type="text" 
+                                name="last_name"
+                                id="last_name"
+                                class="form-control form-control-lg text-center"
+                                placeholder="Enter Last Name"
+                                required
+                            >
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Department</label>
+                            <input 
+                                type="text" 
+                                name="department"
+                                id="department"
+                                class="form-control form-control-lg text-center"
+                                placeholder="Enter Department"
                                 required
                             >
                         </div>
@@ -148,10 +211,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     <?php if ($isFromQR): ?>
-        document.getElementById('id_number').focus();
+        document.getElementById('first_name').focus();
     <?php else: ?>
         document.getElementById('game_code').focus();
     <?php endif; ?>
+
+    // Force uppercase as the user types
+    const upperFields = ['first_name', 'middle_name', 'last_name', 'department'];
+    upperFields.forEach(function (id) {
+        const field = document.getElementById(id);
+        if (field) {
+            field.addEventListener('input', function () {
+                const start = field.selectionStart;
+                const end = field.selectionEnd;
+                field.value = field.value.toUpperCase();
+                field.setSelectionRange(start, end);
+            });
+        }
+    });
 });
 </script>
 

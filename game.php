@@ -417,12 +417,12 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
                     disableAllCards();
 
                     // 🎉 Launch confetti
-                    const duration = 3000;
+                    const duration = 2000;
                     const end = Date.now() + duration;
                     (function frame() {
                         confetti({
-                            particleCount: 3,
-                            spread: 90,
+                            particleCount: 2,
+                            spread: 200,
                             origin: { x: Math.random(), y: 0 }
                         });
                         if (Date.now() < end) requestAnimationFrame(frame);
