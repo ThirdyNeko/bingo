@@ -51,7 +51,9 @@ if (!$game) {
             </span>
         </p>
 
-        <div class="spinner-border text-warning mb-3" role="status"></div>
+        <div class="d-flex justify-content-center mb-3">
+            <div class="spinner-border text-warning" role="status"></div>
+        </div>
 
         <h5 class="text-warning">Waiting for host to start the game...</h5>
 
