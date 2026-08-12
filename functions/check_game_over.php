@@ -1,7 +1,7 @@
 <?php
 session_name('Bingo');
 session_start();
-require 'config/db.php';
+require '../config/db.php';
 
 if (!isset($_SESSION['game_id'])) {
     echo json_encode(['gameOver' => false]);

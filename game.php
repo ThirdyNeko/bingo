@@ -195,7 +195,7 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
 
     async function checkGameOverOnce() {
         try {
-            const res = await fetch('check_game_over.php');
+            const res = await fetch('functions/check_game_over.php');
             const data = await res.json();
             const gameOver = data.gameOver;
 
@@ -334,7 +334,7 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
     // ----- Long polling for new numbers (no auto-color) -----
     async function pollNewNumbers(lastNumber = 0) {
         try {
-            const res = await fetch(`get_drawn_numbers.php?lastNumber=${lastNumber}`);
+            const res = await fetch(`functions/get_drawn_numbers.php?lastNumber=${lastNumber}`);
             const data = await res.json();
 
             if (data.newNumbers.length > 0) {
@@ -390,7 +390,7 @@ document.querySelectorAll('.bingo-card').forEach((card, cardIndex) => {
                 .map(cell => parseInt(cell.dataset.number));
 
             try {
-                const res = await fetch('claim_bingo.php', {
+                const res = await fetch('functions/claim_bingo.php', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({

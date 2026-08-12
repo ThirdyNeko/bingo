@@ -65,7 +65,7 @@ if (!$game) {
 
 <script>
 function checkGameStatus() {
-    fetch("check_game_status.php?game_id=<?= $gameId ?>")
+    fetch("functions/check_game_status.php?game_id=<?= $gameId ?>")
         .then(res => res.json())
         .then(data => {
             if (data.started) {

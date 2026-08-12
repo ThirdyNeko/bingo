@@ -1,7 +1,7 @@
 <?php
 session_name('Bingo');
 session_start();
-require_once 'config/db.php';
+require_once '../config/db.php';
 
 if (!isset($_SESSION['game_id'])) {
     http_response_code(400);
