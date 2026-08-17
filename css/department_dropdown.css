@@ -6,6 +6,7 @@
     background-color: #2a2a2a;
     border: 1px solid #444;
     color: #fff;
+    text-align: center;
 }
 
 #departmentDropdownBtn:hover,
@@ -34,6 +35,7 @@
     background-color: #1a1a1a;
     border: 1px solid #444;
     color: #fff;
+    text-align: center;
 }
 
 #departmentSearch:focus {
@@ -49,6 +51,7 @@
 
 .department-option {
     color: #fff;
+    text-align: center;
 }
 
 .department-option:hover,

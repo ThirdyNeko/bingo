@@ -18,6 +18,7 @@ $departments = [
     'EXTERNAL',
     'FINANCE',
     'HR',
+    'INSTITUTIONAL',
     'MERCHANDISING',
     'MIS',
     'MOBILE',
@@ -30,6 +31,7 @@ $departments = [
     'RECONCILIATION',
     'REPO',
     'SERVICE',
+    'SOFTWARE DEVELOPMENT',
     'STOCKCARDING/LEDGERING',
     'SUPPLIES',
     'TREASURY',
@@ -127,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <!-- Bootstrap 5 CDN -->
     <link href="css/bootstrap.min.css" rel="stylesheet">
     <link href="css/index.css" rel="stylesheet">
-    <link href="css/department-dropdown.css" rel="stylesheet">
+    <link href="css/department_dropdown.css" rel="stylesheet">
 </head>
 <body class="bg-dark d-flex align-items-center" style="min-height: 100vh;">
 
@@ -216,7 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="dropdown">
                                 <button
                                     type="button"
-                                    class="btn btn-lg form-control form-control-lg text-start dropdown-toggle"
+                                    class="btn btn-lg form-control form-control-lg text-center dropdown-toggle"
                                     id="departmentDropdownBtn"
                                     data-bs-toggle="dropdown"
                                     data-bs-auto-close="outside"
