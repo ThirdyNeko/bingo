@@ -10,7 +10,7 @@ require_once __DIR__ . '/includes/cards_data.php';
     <title>My Bingo Cards</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="css/bootstrap.min.css" rel="stylesheet">
-    <link href="css/design.css" rel="stylesheet">
+    <link href="css/game.css" rel="stylesheet">
 
     <style>
         body {

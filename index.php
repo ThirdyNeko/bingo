@@ -7,6 +7,35 @@ require_once 'config/db.php';
 
 $error = '';
 
+// List of valid departments for the dropdown
+$departments = [
+    'ACCOUNTING',
+    'ACCOUNTS RECEIVABLE',
+    'AUDIT',
+    'COMMISSION AND INCENTIVES',
+    'CREDIT CARDS',
+    'ENGINEERING',
+    'EXTERNAL',
+    'FINANCE',
+    'HR',
+    'MERCHANDISING',
+    'MIS',
+    'MOBILE',
+    'ONLINE SALES',
+    'PAYABLES',
+    'PAYROLL',
+    'PDG',
+    'PROPERTY',
+    'PURCHASING',
+    'RECONCILIATION',
+    'REPO',
+    'SERVICE',
+    'STOCKCARDING/LEDGERING',
+    'SUPPLIES',
+    'TREASURY',
+    'UTILITY',
+];
+
 // Detect QR usage
 $qrGameCode = trim($_GET['game_code'] ?? '');
 $isFromQR = !empty($qrGameCode);
@@ -22,6 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($game_code) || empty($first_name) || empty($middle_name) || empty($last_name) || empty($department)) {
         $error = "First Name, Middle Name, Last Name, and Department are required.";
+    } elseif (!in_array($department, $departments, true)) {
+        $error = "Please select a valid Department.";
     } else {
 
         // 1️⃣ Check Game
@@ -95,7 +126,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <!-- Bootstrap 5 CDN -->
     <link href="css/bootstrap.min.css" rel="stylesheet">
-    <link href="css/design.css" rel="stylesheet">
+    <link href="css/index.css" rel="stylesheet">
+    <link href="css/department-dropdown.css" rel="stylesheet">
 </head>
 <body class="bg-dark d-flex align-items-center" style="min-height: 100vh;">
 
@@ -181,14 +213,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         <div class="mb-4">
                             <label class="form-label fw-semibold">Department</label>
-                            <input 
-                                type="text" 
-                                name="department"
-                                id="department"
-                                class="form-control form-control-lg text-center"
-                                placeholder="Enter Department"
-                                required
-                            >
+                            <div class="dropdown">
+                                <button
+                                    type="button"
+                                    class="btn btn-lg form-control form-control-lg text-start dropdown-toggle"
+                                    id="departmentDropdownBtn"
+                                    data-bs-toggle="dropdown"
+                                    data-bs-auto-close="outside"
+                                    aria-expanded="false"
+                                >
+                                    <span id="departmentSelectedText" class="text-muted">Select Department</span>
+                                </button>
+                                <div class="dropdown-menu w-100 p-2" style="max-height: 320px; overflow-y: auto;">
+                                    <input
+                                        type="text"
+                                        id="departmentSearch"
+                                        class="form-control mb-2"
+                                        placeholder="Search department..."
+                                        autocomplete="off"
+                                    >
+                                    <ul class="list-unstyled mb-0" id="departmentOptionsList">
+                                        <?php foreach ($departments as $dept): ?>
+                                            <li>
+                                                <button
+                                                    type="button"
+                                                    class="dropdown-item department-option"
+                                                    data-value="<?= htmlspecialchars($dept) ?>"
+                                                ><?= htmlspecialchars($dept) ?></button>
+                                            </li>
+                                        <?php endforeach; ?>
+                                        <li id="departmentNoResults" class="px-3 py-2 text-muted small d-none">No matching department</li>
+                                    </ul>
+                                </div>
+                                <input
+                                    type="hidden"
+                                    name="department"
+                                    id="department"
+                                    value="<?= isset($_POST['department']) ? htmlspecialchars(mb_strtoupper(trim($_POST['department']))) : '' ?>"
+                                    required
+                                >
+                            </div>
+                            <div id="departmentError" class="text-danger small mt-1 d-none">Please select a Department from the list.</div>
                         </div>
 
                         <button type="submit" class="btn btn-success btn-lg w-100 rounded-3">
@@ -208,6 +273,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
+<!-- Bootstrap 5 JS Bundle (needed for the Department dropdown) -->
+<script src="js/bootstrap.bundle.min.js"></script>
+
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     <?php if ($isFromQR): ?>
@@ -216,8 +284,8 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById('game_code').focus();
     <?php endif; ?>
 
-    // Force uppercase as the user types
-    const upperFields = ['first_name', 'middle_name', 'last_name', 'department'];
+    // Force uppercase as the user types (Department is now a dropdown, so excluded)
+    const upperFields = ['first_name', 'middle_name', 'last_name'];
     upperFields.forEach(function (id) {
         const field = document.getElementById(id);
         if (field) {
@@ -229,6 +297,80 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         }
     });
+
+    // Searchable dropdown behavior for Department
+    const deptHidden       = document.getElementById('department');
+    const deptBtn          = document.getElementById('departmentDropdownBtn');
+    const deptSelectedText = document.getElementById('departmentSelectedText');
+    const deptSearch       = document.getElementById('departmentSearch');
+    const deptNoResults    = document.getElementById('departmentNoResults');
+    const deptError        = document.getElementById('departmentError');
+    const deptOptions      = Array.from(document.querySelectorAll('.department-option'));
+    const deptForm         = deptHidden ? deptHidden.closest('form') : null;
+
+    if (deptHidden && deptBtn) {
+        // Pre-fill selected text if a value was posted back (e.g. on validation error)
+        if (deptHidden.value) {
+            const match = deptOptions.find(opt => opt.dataset.value === deptHidden.value);
+            if (match) {
+                deptSelectedText.textContent = match.dataset.value;
+                deptSelectedText.classList.remove('text-muted');
+            }
+        }
+
+        // Filter options as the user types
+        deptSearch.addEventListener('input', function () {
+            const query = deptSearch.value.trim().toUpperCase();
+            let anyVisible = false;
+
+            deptOptions.forEach(function (opt) {
+                const matches = opt.dataset.value.toUpperCase().includes(query);
+                opt.parentElement.classList.toggle('d-none', !matches);
+                if (matches) anyVisible = true;
+            });
+
+            deptNoResults.classList.toggle('d-none', anyVisible);
+        });
+
+        // Prevent the dropdown from closing when clicking inside the search box
+        deptSearch.addEventListener('click', function (e) {
+            e.stopPropagation();
+        });
+
+        // Handle option selection
+        deptOptions.forEach(function (opt) {
+            opt.addEventListener('click', function () {
+                deptHidden.value = opt.dataset.value;
+                deptSelectedText.textContent = opt.dataset.value;
+                deptSelectedText.classList.remove('text-muted');
+                deptError.classList.add('d-none');
+                deptBtn.classList.remove('is-invalid');
+
+                const dropdownInstance = bootstrap.Dropdown.getOrCreateInstance(deptBtn);
+                dropdownInstance.hide();
+            });
+        });
+
+        // Reset search + scroll to top each time the dropdown opens, and focus the search box
+        deptBtn.addEventListener('shown.bs.dropdown', function () {
+            deptSearch.value = '';
+            deptOptions.forEach(opt => opt.parentElement.classList.remove('d-none'));
+            deptNoResults.classList.add('d-none');
+            deptSearch.focus();
+        });
+
+        // Validate on submit since the real field is a hidden input
+        if (deptForm) {
+            deptForm.addEventListener('submit', function (e) {
+                if (!deptHidden.value) {
+                    deptError.classList.remove('d-none');
+                    deptBtn.classList.add('is-invalid');
+                    deptBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    e.preventDefault();
+                }
+            });
+        }
+    }
 });
 </script>
 
