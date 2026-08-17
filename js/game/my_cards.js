@@ -22,7 +22,11 @@
     localStorage.setItem("last_game_id", gameId);
   }
 
-  async function checkGameOverOnce(previousGameOverRef) {
+  // Registries so a single polling loop can update every card on the page.
+  const cardUpdateHandlers = [];
+  const previousGameOverRef = { value: false };
+
+  async function checkGameOverOnce() {
     try {
       const res = await fetch("functions/check_game_over.php");
       const data = await res.json();
@@ -71,9 +75,6 @@
   }
 
   function initCard(card, cardIndex) {
-    const previousGameOverRef = { value: false };
-    setInterval(() => checkGameOverOnce(previousGameOverRef), 5000);
-
     const cells = card.querySelectorAll(".bingo-cell");
     const bingoButton = card.querySelector(".bingo-btn");
 
@@ -161,44 +162,28 @@
 
     restoreMarks();
 
-    // ----- Long polling for new numbers (no auto-color unless autoMode) -----
-    async function pollNewNumbers(lastNumber = 0) {
-      try {
-        const res = await fetch(
-          `functions/get_drawn_numbers.php?lastNumber=${lastNumber}`,
-        );
-        const data = await res.json();
-
-        if (data.newNumbers.length > 0) {
-          data.newNumbers.forEach((n) => {
-            drawnNumbers.push(n);
-
-            if (autoMode) {
-              cells.forEach((cell) => {
-                const number = parseInt(cell.dataset.number);
-                if (number === n) {
-                  cell.classList.add("marked");
-                  manualMarks.add(number);
-                }
-              });
+    // Called by the single shared poller whenever new numbers come in.
+    function onNewNumbers(newNumbers) {
+      if (autoMode) {
+        newNumbers.forEach((n) => {
+          cells.forEach((cell) => {
+            const number = parseInt(cell.dataset.number);
+            if (number === n) {
+              cell.classList.add("marked");
+              manualMarks.add(number);
             }
           });
+        });
 
-          localStorage.setItem(
-            storageKey,
-            JSON.stringify(Array.from(manualMarks)),
-          );
-          verifyBingo();
-          lastNumber = Math.max(...drawnNumbers);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setTimeout(() => pollNewNumbers(lastNumber), 1000);
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify(Array.from(manualMarks)),
+        );
       }
+      verifyBingo();
     }
 
-    pollNewNumbers();
+    cardUpdateHandlers.push(onNewNumbers);
 
     // ----- Handle Bingo button click -----
     if (bingoButton) {
@@ -275,9 +260,47 @@
     }
   }
 
+  // ----- Single shared long-poll loop for the whole page (not per card) -----
+  // Running one instance per card was the source of the duplicate-number bug:
+  // each card's own loop started at lastNumber=0 and pushed the same numbers
+  // into the shared drawnNumbers array independently.
+  let pollLastNumber = drawnNumbers.length > 0 ? Math.max(...drawnNumbers) : 0;
+
+  async function pollNewNumbers() {
+    try {
+      const res = await fetch(
+        `functions/get_drawn_numbers.php?lastNumber=${pollLastNumber}`,
+      );
+      const data = await res.json();
+
+      if (data.newNumbers.length > 0) {
+        // Guard against duplicates even if the backend ever returns a
+        // number that's already in drawnNumbers (e.g. due to a retry).
+        const trulyNew = data.newNumbers.filter(
+          (n) => !drawnNumbers.includes(n),
+        );
+
+        if (trulyNew.length > 0) {
+          trulyNew.forEach((n) => drawnNumbers.push(n));
+          cardUpdateHandlers.forEach((handler) => handler(trulyNew));
+        }
+
+        pollLastNumber = Math.max(...drawnNumbers);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTimeout(pollNewNumbers, 1000);
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     document
       .querySelectorAll(".bingo-card")
       .forEach((card, cardIndex) => initCard(card, cardIndex));
+
+    // Start the shared loops exactly once per page load.
+    pollNewNumbers();
+    setInterval(checkGameOverOnce, 5000);
   });
 })();
