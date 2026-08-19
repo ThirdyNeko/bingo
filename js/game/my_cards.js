@@ -218,6 +218,13 @@
           if (data.success) {
             disableAllCards();
 
+            // 🔊 Play win sound
+            const winSound = new Audio("js/audio/bingo_win.mp3");
+            winSound.volume = 0.8; // adjust to taste
+            winSound
+              .play()
+              .catch((err) => console.warn("Audio play blocked:", err));
+
             const duration = 2000;
             const end = Date.now() + duration;
             (function frame() {
