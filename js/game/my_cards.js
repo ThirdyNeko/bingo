@@ -16,6 +16,15 @@
 
   let gameOver = !!config.gameOverInitial;
 
+  function vibrate(pattern) {
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    if (navigator.vibrate && !prefersReducedMotion) {
+      navigator.vibrate(pattern);
+    }
+  }
+
   const lastGameId = localStorage.getItem("last_game_id");
   if (lastGameId != gameId) {
     localStorage.clear();
@@ -34,6 +43,7 @@
 
       if (!previousGameOverRef.value && isOver) {
         window.gameOverShown = true;
+        vibrate(80);
 
         document.querySelectorAll(".bingo-cell").forEach((cell) => {
           cell.style.pointerEvents = "none";
@@ -137,6 +147,7 @@
         const number = parseInt(cell.dataset.number);
 
         if (!drawnNumbers.includes(number)) {
+          vibrate([15, 60, 15]); // quick buzz-pause-buzz = "no"
           Swal.fire({
             icon: "error",
             title: "Not Drawn!",
@@ -148,6 +159,7 @@
         }
 
         cell.classList.toggle("marked");
+        vibrate(15); // light tick
 
         if (cell.classList.contains("marked")) manualMarks.add(number);
         else manualMarks.delete(number);
@@ -165,15 +177,19 @@
     // Called by the single shared poller whenever new numbers come in.
     function onNewNumbers(newNumbers) {
       if (autoMode) {
+        let didMark = false;
         newNumbers.forEach((n) => {
           cells.forEach((cell) => {
             const number = parseInt(cell.dataset.number);
             if (number === n) {
               cell.classList.add("marked");
               manualMarks.add(number);
+              didMark = true;
             }
           });
         });
+
+        if (didMark) vibrate(30);
 
         localStorage.setItem(
           storageKey,
@@ -217,6 +233,7 @@
 
           if (data.success) {
             disableAllCards();
+            vibrate([60, 40, 60, 40, 120]); // win pattern
 
             // 🔊 Play win sound
             const winSound = new Audio("js/audio/bingo_win.mp3");
@@ -244,6 +261,7 @@
 
             bingoButton.disabled = true;
           } else {
+            vibrate(200); // flat "denied" buzz
             let errorText = data.message || "Cannot claim bingo now.";
             if (data.error) {
               errorText += "\n\n" + JSON.stringify(data.error, null, 2);
