@@ -12,6 +12,12 @@ header('Content-Type: application/json');
 
 $gameId = $_SESSION['game_id'];
 
+// Release the session lock before the long-poll loop below — otherwise
+// this holds it for up to $timeout seconds, blocking every other
+// request on the same session (e.g. change_card.php) until it happens
+// to land between polls.
+session_write_close();
+
 // Client sends last known numbers as comma-separated list
 $lastNumbers = isset($_GET['lastNumbers']) ? explode(',', $_GET['lastNumbers']) : [];
 $lastNumbers = array_map('intval', $lastNumbers);

@@ -4,7 +4,9 @@
 //   drawnNumbers: number[],
 //   pattern: number[][],
 //   autoMode: boolean,
-//   gameOverInitial: boolean
+//   gameOverInitial: boolean,
+//   inCardChangeWindow: boolean,
+//   cardChangeDeadline: string | null   // ISO timestamp
 // }
 
 (function () {
@@ -13,6 +15,7 @@
   const gamePattern = config.pattern || [];
   const autoMode = !!config.autoMode;
   const gameId = config.gameId;
+  const letters = ["B", "I", "N", "G", "O"];
 
   let gameOver = !!config.gameOverInitial;
 
@@ -87,6 +90,7 @@
   function initCard(card, cardIndex) {
     const cells = card.querySelectorAll(".bingo-cell");
     const bingoButton = card.querySelector(".bingo-btn");
+    const changeCardButton = card.querySelector(".change-card-btn");
 
     const storageKey = `bingo_marks_game_${gameId}_card_${cardIndex}`;
     const savedMarks = JSON.parse(localStorage.getItem(storageKey)) || [];
@@ -218,15 +222,16 @@
             }),
           });
 
+          const resText = await res.text();
           let data;
           try {
-            data = await res.json();
+            data = JSON.parse(resText);
           } catch (jsonErr) {
             console.error("JSON parse error:", jsonErr);
             Swal.fire({
               icon: "error",
               title: "Invalid response",
-              text: await res.text(),
+              text: resText,
             });
             return;
           }
@@ -283,6 +288,116 @@
         }
       });
     }
+
+    // ----- Handle Change Card button click -----
+    // Only the neutral numbers change server-side; pattern cells (and
+    // FREE) are left alone. We still clear all marks here since the
+    // numbers under them are no longer guaranteed to match.
+    if (changeCardButton) {
+      changeCardButton.addEventListener("click", async () => {
+        changeCardButton.disabled = true;
+
+        try {
+          const res = await fetch("functions/change_card.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cardIndex: cardIndex }),
+          });
+
+          const resText = await res.text();
+          let data;
+          try {
+            data = JSON.parse(resText);
+          } catch (jsonErr) {
+            console.error("JSON parse error:", jsonErr);
+            Swal.fire({
+              icon: "error",
+              title: "Invalid response",
+              text: resText,
+            });
+            return;
+          }
+
+          if (data.success) {
+            vibrate(30);
+
+            cells.forEach((cell) => {
+              const row = parseInt(cell.dataset.row);
+              const colIndex = parseInt(cell.dataset.colIndex);
+              const letter = letters[colIndex];
+              const newNumber = data.cardData[letter][row];
+
+              cell.dataset.number = newNumber;
+              cell.textContent = newNumber;
+              cell.classList.remove("marked");
+            });
+
+            manualMarks.clear();
+            localStorage.setItem(storageKey, JSON.stringify([]));
+            verifyBingo();
+
+            // One change per card — remove the button so it can't be
+            // clicked again without a reload (server enforces this too).
+            changeCardButton.remove();
+
+            Swal.fire({
+              icon: "success",
+              title: "Card changed!",
+              timer: 1000,
+              showConfirmButton: false,
+            });
+          } else {
+            vibrate(200);
+            Swal.fire({
+              icon: "error",
+              title: "Can't change card",
+              text: data.message || "Card changes are no longer allowed.",
+            });
+          }
+        } catch (err) {
+          console.error(err);
+          Swal.fire({
+            icon: "error",
+            title: "Fetch Error",
+            text:
+              err.message || "Something went wrong while changing your card.",
+          });
+        } finally {
+          changeCardButton.disabled = false;
+        }
+      });
+    }
+  }
+
+  // ----- Card-change window countdown -----
+  // Reloads the page once the window closes so PHP re-renders without
+  // the Change Card button / banner (same pattern as the rest of this
+  // app's live-screen polling-and-reload approach).
+  function startCardChangeCountdown() {
+    if (!config.inCardChangeWindow || !config.cardChangeDeadline) return;
+
+    const wrap = document.getElementById("card-change-countdown-wrap");
+    const el = document.getElementById("card-change-countdown");
+    if (!wrap || !el) return;
+
+    const deadline = new Date(config.cardChangeDeadline).getTime();
+
+    function tick() {
+      const remaining = deadline - Date.now();
+
+      if (remaining <= 0) {
+        window.location.reload();
+        return;
+      }
+
+      const totalSeconds = Math.floor(remaining / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      el.textContent = `${minutes}:${String(seconds).padStart(2, "0")}`;
+    }
+
+    tick();
+    setInterval(tick, 1000);
   }
 
   // ----- Single shared long-poll loop for the whole page (not per card) -----
@@ -327,5 +442,6 @@
     // Start the shared loops exactly once per page load.
     pollNewNumbers();
     setInterval(checkGameOverOnce, 5000);
+    startCardChangeCountdown();
   });
 })();
