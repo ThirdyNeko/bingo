@@ -89,9 +89,21 @@ if (!isset($cards[$cardIndex])) {
 
 $cardRow = $cards[$cardIndex];
 
-// 🚫 One change per card, ever — not one per window.
-if ((int) $cardRow['card_changed'] === 1) {
-    echo json_encode(['success' => false, 'message' => 'You can only change this card once.']);
+// 🚫 Up to card_change_limit changes per card (set per-game in Create Game,
+// 1-5, default 2). card_changed is a running count of changes made so far,
+// not a one-shot flag — a game with no limit set (older games, or the
+// window disabled) falls back to 1 for backward compatibility.
+$cardChangeLimit = isset($game['card_change_limit']) && $game['card_change_limit']
+    ? (int) $game['card_change_limit']
+    : 1;
+
+$timesChanged = (int) $cardRow['card_changed'];
+
+if ($timesChanged >= $cardChangeLimit) {
+    echo json_encode([
+        'success' => false,
+        'message' => "You've used all {$cardChangeLimit} card change" . ($cardChangeLimit === 1 ? '' : 's') . " allowed for this card.",
+    ]);
     exit;
 }
 
@@ -105,12 +117,14 @@ $newCardData = regenerateNeutralNumbers($cardData, $pattern);
 
 $updateStmt = $pdo->prepare("
     UPDATE user_cards
-    SET card_data = ?, card_changed = 1
+    SET card_data = ?, card_changed = card_changed + 1
     WHERE id = ?
 ");
 $updateStmt->execute([json_encode($newCardData), $cardRow['id']]);
 
 echo json_encode([
-    'success'  => true,
-    'cardData' => $newCardData,
+    'success'        => true,
+    'cardData'       => $newCardData,
+    'changesUsed'    => $timesChanged + 1,
+    'changesAllowed' => $cardChangeLimit,
 ]);
