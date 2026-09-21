@@ -79,9 +79,9 @@
 }
 
 .bingo-table thead th:nth-child(1) { background: linear-gradient(145deg, #5b8def, #2e4fbd); } /* B */
-.bingo-table thead th:nth-child(2) { background: linear-gradient(145deg, #ff6b6b, #d6272e); } /* I */
-.bingo-table thead th:nth-child(3) { background: linear-gradient(145deg, #2ec4b6, #189c8f); } /* N */
-.bingo-table thead th:nth-child(4) { background: linear-gradient(145deg, #ffb703, #e08900); } /* G */
+.bingo-table thead th:nth-child(2) { background: linear-gradient(145deg, #03ff2d, #00e04b); } /* I */
+.bingo-table thead th:nth-child(3) { background: linear-gradient(145deg, #ffb703, #e08900); } /* N */
+.bingo-table thead th:nth-child(4) { background: linear-gradient(145deg, #ff6b6b, #d6272e); } /* G */
 .bingo-table thead th:nth-child(5) { background: linear-gradient(145deg, #a855f7, #7209b7); } /* O */
 
 .bingo-table thead th:hover {
