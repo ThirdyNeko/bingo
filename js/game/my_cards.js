@@ -6,8 +6,11 @@
 //   autoMode: boolean,
 //   gameOverInitial: boolean,
 //   inCardChangeWindow: boolean,
-//   cardChangeDeadline: string | null   // ISO timestamp
+//   cardChangeDeadline: string | null,  // ISO timestamp
+//   serverNow: string                    // ISO timestamp, server clock at render
 // }
+//
+// Also expects js/clock.js to be loaded before this file (BingoClock global).
 
 (function () {
   const config = window.BingoCardsConfig || {};
@@ -18,6 +21,11 @@
   const letters = ["B", "I", "N", "G", "O"];
 
   let gameOver = !!config.gameOverInitial;
+
+  // Correct for this device's clock being wrong, once, up front — every
+  // countdown below reads time through BingoClock.now() instead of
+  // Date.now() so it tracks the server's clock, not the phone's.
+  BingoClock.init(config.serverNow);
 
   function vibrate(pattern) {
     const prefersReducedMotion = window.matchMedia(
@@ -373,6 +381,10 @@
   // Reloads the page once the window closes so PHP re-renders without
   // the Change Card button / banner (same pattern as the rest of this
   // app's live-screen polling-and-reload approach).
+  //
+  // Uses BingoClock.now() (server-corrected) instead of Date.now() so
+  // this hits zero at the same real-world moment as the game-master
+  // screen's countdown, regardless of either device's own clock.
   function startCardChangeCountdown() {
     if (!config.inCardChangeWindow || !config.cardChangeDeadline) return;
 
@@ -383,7 +395,7 @@
     const deadline = new Date(config.cardChangeDeadline).getTime();
 
     function tick() {
-      const remaining = deadline - Date.now();
+      const remaining = deadline - BingoClock.now().getTime();
 
       if (remaining <= 0) {
         window.location.reload();

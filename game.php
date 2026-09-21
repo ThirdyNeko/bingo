@@ -165,11 +165,16 @@ if (isset($_SESSION['user_id'])) {
         'gameOverInitial'     => $gameOverInitial,
         'inCardChangeWindow'  => $inCardChangeWindow,
         'cardChangeDeadline'  => $cardChangeDeadline ? date('c', strtotime($cardChangeDeadline)) : null,
+        // Server's current time at render, so the client can correct for
+        // a wrong device clock instead of comparing the deadline to its
+        // own `new Date()`. See js/clock.js.
+        'serverNow'           => date('c'),
     ]) ?>;
 </script>
 
 <script src="sweetalert/dist/sweetalert2.all.min.js"></script>
 <script src="js/confetti.min.js"></script>
+<script src="js/clock.js"></script>
 <script src="js/game/my_cards.js"></script>
 
 </body>
