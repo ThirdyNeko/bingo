@@ -160,6 +160,7 @@
 
         if (!drawnNumbers.includes(number)) {
           vibrate([15, 60, 15]); // quick buzz-pause-buzz = "no"
+          new Audio("js/audio/invalid.mp3").play().catch(() => {});
           Swal.fire({
             icon: "error",
             title: "Not Drawn!",
@@ -172,6 +173,7 @@
 
         cell.classList.toggle("marked");
         vibrate(15); // light tick
+        new Audio("js/audio/press.mp3").play().catch(() => {});
 
         if (cell.classList.contains("marked")) manualMarks.add(number);
         else manualMarks.delete(number);
