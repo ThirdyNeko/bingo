@@ -6,7 +6,7 @@ require_once __DIR__ . '/includes/cards_data.php';
 // Card-change window: while open, players may regenerate the neutral
 // numbers on their card(s). $pdo is expected to already be in scope
 // here via cards_data.php's own require of config/db.php.
-$cardChangeStmt = $pdo->prepare("SELECT started, card_change_deadline FROM game WHERE id = ?");
+$cardChangeStmt = $pdo->prepare("SELECT started, card_change_deadline, card_change_limit FROM game WHERE id = ?");
 $cardChangeStmt->execute([$gameId]);
 $cardChangeRow = $cardChangeStmt->fetch();
 
@@ -16,11 +16,17 @@ $inCardChangeWindow = $cardChangeRow
     && $cardChangeDeadline
     && strtotime($cardChangeDeadline) > time();
 
-// Per-card "already used its one change" flags, in the same id-ascending
-// order as $cards, so cardChangedFlags[$index] lines up with $cards[$index].
+// Same fallback as change_card.php: no limit set -> 1 change per card.
+$cardChangeLimit = !empty($cardChangeRow['card_change_limit'])
+    ? (int) $cardChangeRow['card_change_limit']
+    : 1;
+
+// Per-card change counts so far, in the same id-ascending order as $cards,
+// so $cardChangedCounts[$index] lines up with $cards[$index].
+// card_changed is a running count (incremented by change_card.php), not a flag.
 // Assumes $_SESSION['user_id'] is set the same way change_card.php expects —
 // which it should be, since cards_data.php already used it to load $cards.
-$cardChangedFlags = [];
+$cardChangedCounts = [];
 if (isset($_SESSION['user_id'])) {
     $changedStmt = $pdo->prepare("
         SELECT card_changed
@@ -29,7 +35,7 @@ if (isset($_SESSION['user_id'])) {
         ORDER BY id ASC
     ");
     $changedStmt->execute([(int) $_SESSION['user_id'], $gameId]);
-    $cardChangedFlags = $changedStmt->fetchAll(PDO::FETCH_COLUMN);
+    $cardChangedCounts = $changedStmt->fetchAll(PDO::FETCH_COLUMN);
 }
 ?>
 <!DOCTYPE html>
@@ -98,7 +104,11 @@ if (isset($_SESSION['user_id'])) {
     <?php endif; ?>
 
     <?php foreach ($cards as $index => $cardJson): ?>
-        <?php $card = json_decode($cardJson, true); ?>
+        <?php
+            $card = json_decode($cardJson, true);
+            $changesUsed = (int) ($cardChangedCounts[$index] ?? 0);
+            $changesLeft = $cardChangeLimit - $changesUsed;
+        ?>
         <div class="card shadow-lg bingo-card mb-5">
             <div class="card-body">
                 <h5 class="mb-3">
@@ -142,11 +152,11 @@ if (isset($_SESSION['user_id'])) {
                     🎉 BINGO! 🎉
                 </button>
 
-                <?php if ($inCardChangeWindow && empty($cardChangedFlags[$index])): ?>
+                <?php if ($inCardChangeWindow && $changesLeft > 0): ?>
                     <button
                         class="btn btn-lg mt-3 change-card-btn"
                         data-card-index="<?= $index ?>">
-                        🔄 Change Card
+                        🔄 Change Card (<?= $changesLeft ?> left)
                     </button>
                 <?php endif; ?>
             </div>

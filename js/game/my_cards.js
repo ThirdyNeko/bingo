@@ -346,9 +346,15 @@
             localStorage.setItem(storageKey, JSON.stringify([]));
             verifyBingo();
 
-            // One change per card — remove the button so it can't be
-            // clicked again without a reload (server enforces this too).
-            changeCardButton.remove();
+            // The server enforces the per-game limit (card_change_limit).
+            // Keep the button until the player has used all their changes,
+            // and show how many are left.
+            const left = data.changesAllowed - data.changesUsed;
+            if (left <= 0) {
+              changeCardButton.remove();
+            } else {
+              changeCardButton.textContent = `🔄 Change Card (${left} left)`;
+            }
 
             Swal.fire({
               icon: "success",
@@ -373,6 +379,8 @@
               err.message || "Something went wrong while changing your card.",
           });
         } finally {
+          // Re-enable for the next change. Harmless if the button was
+          // removed above.
           changeCardButton.disabled = false;
         }
       });
