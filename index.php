@@ -19,6 +19,7 @@ $departments = [
     'FINANCE',
     'HR',
     'INSTITUTIONAL',
+    'MARKETING',
     'MERCHANDISING',
     'MIS',
     'MOBILE',
