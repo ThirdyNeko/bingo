@@ -1,4 +1,13 @@
 <?php
+/*
+ * Returns the numbers drawn after the first ?count= ones, in draw order.
+ *
+ * Replaces the old long-poll loop. It answers immediately with one small
+ * query, so a poll never holds a PHP worker open (the old version held one
+ * per player for up to 25s, which exhausted the web server at ~150 players).
+ *
+ * Client sends ?count=<how many numbers it already has>.
+ */
 session_name('Bingo');
 session_start();
 require_once '../config/db.php';
@@ -10,43 +19,18 @@ if (!isset($_SESSION['game_id'])) {
 
 header('Content-Type: application/json');
 
-$gameId = $_SESSION['game_id'];
+$gameId = (int) $_SESSION['game_id'];
 
-// Release the session lock before the long-poll loop below — otherwise
-// this holds it for up to $timeout seconds, blocking every other
-// request on the same session (e.g. change_card.php) until it happens
-// to land between polls.
+// Release the session lock right away so this player's other requests
+// (claim_bingo, change_card) are never blocked behind a poll.
 session_write_close();
 
-// Client sends last known numbers as comma-separated list
-$lastNumbers = isset($_GET['lastNumbers']) ? explode(',', $_GET['lastNumbers']) : [];
-$lastNumbers = array_map('intval', $lastNumbers);
+$count = max(0, (int) ($_GET['count'] ?? 0));
 
-$timeout = 25; // seconds
-$startTime = time();
+$stmt = $pdo->prepare("SELECT drawn_numbers FROM game WHERE id = ?");
+$stmt->execute([$gameId]);
+$row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-while (true) {
-    $stmt = $pdo->prepare("SELECT drawn_numbers FROM game WHERE id = ?");
-    $stmt->execute([$gameId]);
-    $game = $stmt->fetch(PDO::FETCH_ASSOC);
+$drawn = array_map('intval', json_decode($row['drawn_numbers'] ?? '[]', true) ?: []);
 
-    // ✅ Null-safe decode & cast to integers
-    $drawnNumbers = array_map('intval', json_decode($game['drawn_numbers'] ?? '[]', true));
-
-    // Find numbers the client hasn't seen yet
-    $newNumbers = array_values(array_diff($drawnNumbers, $lastNumbers));
-
-    if (!empty($newNumbers)) {
-        echo json_encode(['newNumbers' => $newNumbers]);
-        exit;
-    }
-
-    // Timeout
-    if ((time() - $startTime) >= $timeout) {
-        echo json_encode(['newNumbers' => []]);
-        exit;
-    }
-
-    // Sleep 0.5s
-    usleep(500000);
-}
+echo json_encode(['newNumbers' => array_slice($drawn, $count)]);

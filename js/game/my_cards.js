@@ -422,20 +422,33 @@
     setInterval(tick, 1000);
   }
 
-  // ----- Single shared long-poll loop for the whole page (not per card) -----
+  // ----- Single shared poll loop for the whole page (not per card) -----
   // Running one instance per card was the source of the duplicate-number bug:
   // each card's own loop started at lastNumber=0 and pushed the same numbers
   // into the shared drawnNumbers array independently.
-  let pollLastNumber = drawnNumbers.length > 0 ? Math.max(...drawnNumbers) : 0;
+  //
+  // The server answers instantly (no long-poll), so a poll costs one tiny
+  // query and never ties up a PHP worker. We send how many numbers we already
+  // have; the server replies with only the ones after that, in draw order.
+  const POLL_BASE_MS = 1500; // visible tab: 1.5s + up to 1s jitter
+  const POLL_JITTER_MS = 1000;
+  const POLL_HIDDEN_MS = 5000; // backgrounded tab
+
+  let pollTimer = null;
+
+  function nextDelay() {
+    if (document.hidden) return POLL_HIDDEN_MS;
+    return POLL_BASE_MS + Math.random() * POLL_JITTER_MS;
+  }
 
   async function pollNewNumbers() {
     try {
       const res = await fetch(
-        `functions/get_drawn_numbers.php?lastNumber=${pollLastNumber}`,
+        `functions/get_drawn_numbers.php?count=${drawnNumbers.length}`,
       );
       const data = await res.json();
 
-      if (data.newNumbers.length > 0) {
+      if (data.newNumbers && data.newNumbers.length > 0) {
         // Guard against duplicates even if the backend ever returns a
         // number that's already in drawnNumbers (e.g. due to a retry).
         const trulyNew = data.newNumbers.filter(
@@ -446,15 +459,21 @@
           trulyNew.forEach((n) => drawnNumbers.push(n));
           cardUpdateHandlers.forEach((handler) => handler(trulyNew));
         }
-
-        pollLastNumber = Math.max(...drawnNumbers);
       }
     } catch (err) {
       console.error(err);
     } finally {
-      setTimeout(pollNewNumbers, 1000);
+      pollTimer = setTimeout(pollNewNumbers, nextDelay());
     }
   }
+
+  // Coming back to the tab: poll right away instead of waiting out the slow interval.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      clearTimeout(pollTimer);
+      pollNewNumbers();
+    }
+  });
 
   document.addEventListener("DOMContentLoaded", () => {
     document
@@ -462,7 +481,8 @@
       .forEach((card, cardIndex) => initCard(card, cardIndex));
 
     // Start the shared loops exactly once per page load.
-    pollNewNumbers();
+    // Small random start offset so phones that loaded together don't poll in lockstep.
+    pollTimer = setTimeout(pollNewNumbers, Math.random() * POLL_JITTER_MS);
     setInterval(checkGameOverOnce, 5000);
     startCardChangeCountdown();
   });
