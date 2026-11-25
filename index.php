@@ -51,8 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $last_name   = mb_strtoupper(trim($_POST['last_name'] ?? ''));
     $department  = mb_strtoupper(trim($_POST['department'] ?? ''));
 
-    if (empty($game_code) || empty($first_name) || empty($middle_name) || empty($last_name) || empty($department)) {
-        $error = "First Name, Middle Name, Last Name, and Department are required.";
+    // Middle name is optional
+    if (empty($game_code) || empty($first_name) || empty($last_name) || empty($department)) {
+        $error = "First Name, Last Name, and Department are required.";
     } elseif (!in_array($department, $departments, true)) {
         $error = "Please select a valid Department.";
     } else {
@@ -67,19 +68,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
 
             // 2️⃣ Check User by First/Middle/Last Name + Department
+            // ISNULL handles older rows where middle_name is NULL
             $stmt = $pdo->prepare("
                 SELECT * FROM users
-                WHERE UPPER(LTRIM(RTRIM(first_name)))  = ?
-                  AND UPPER(LTRIM(RTRIM(middle_name)))  = ?
-                  AND UPPER(LTRIM(RTRIM(last_name)))    = ?
-                  AND UPPER(LTRIM(RTRIM(department)))   = ?
+                WHERE UPPER(LTRIM(RTRIM(first_name)))                = ?
+                  AND UPPER(LTRIM(RTRIM(ISNULL(middle_name, ''))))   = ?
+                  AND UPPER(LTRIM(RTRIM(last_name)))                 = ?
+                  AND UPPER(LTRIM(RTRIM(department)))                = ?
             ");
             $stmt->execute([$first_name, $middle_name, $last_name, $department]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$user) {
                 // 3️⃣ No matching user — create one
-                $fullName = "$first_name $middle_name $last_name";
+                // Skip the middle name when blank to avoid a double space
+                $fullName = implode(' ', array_filter([$first_name, $middle_name, $last_name]));
 
                 // id_number has a UNIQUE constraint and SQL Server only allows one NULL,
                 // so generate a unique placeholder for self-registered users.
@@ -190,14 +193,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Middle Name</label>
+                            <label class="form-label fw-semibold">Middle Name <span class="text-secondary small">(optional)</span></label>
                             <input 
                                 type="text" 
                                 name="middle_name"
                                 id="middle_name"
                                 class="form-control form-control-lg text-center"
-                                placeholder="Enter Middle Name"
-                                required
+                                placeholder="Enter Middle Name (optional)"
                             >
                         </div>
 
