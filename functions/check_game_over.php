@@ -1,9 +1,12 @@
 <?php
 session_name('Bingo');
-session_start();
+// read_and_close loads the session and releases its lock immediately,
+// so this never queues behind other requests from the same player.
+session_start(['read_and_close' => true]);
 require '../config/db.php';
 
 header('Content-Type: application/json');
+header('Cache-Control: no-store');
 
 if (!isset($_SESSION['game_id'])) {
     echo json_encode(['gameOver' => false]);
@@ -11,9 +14,6 @@ if (!isset($_SESSION['game_id'])) {
 }
 
 $gameId = (int) $_SESSION['game_id'];
-
-// Release the session lock; we only needed to read game_id.
-session_write_close();
 
 // One query instead of two
 $stmt = $pdo->prepare("

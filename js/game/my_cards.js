@@ -36,6 +36,23 @@
     }
   }
 
+  // Sound effects are created ONCE and reused. Creating `new Audio(url)` on
+  // every tap makes the browser re-check the file with the server each time,
+  // which adds up fast when 100+ players are tapping on the same wifi.
+  const sfxPress = new Audio("js/audio/press.mp3");
+  const sfxInvalid = new Audio("js/audio/invalid.mp3");
+  sfxPress.preload = "auto";
+  sfxInvalid.preload = "auto";
+
+  function playSfx(audio) {
+    try {
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
   const lastGameId = localStorage.getItem("last_game_id");
   if (lastGameId != gameId) {
     localStorage.clear();
@@ -160,7 +177,7 @@
 
         if (!drawnNumbers.includes(number)) {
           vibrate([15, 60, 15]); // quick buzz-pause-buzz = "no"
-          new Audio("js/audio/invalid.mp3").play().catch(() => {});
+          playSfx(sfxInvalid);
           Swal.fire({
             icon: "error",
             title: "Not Drawn!",
@@ -173,7 +190,7 @@
 
         cell.classList.toggle("marked");
         vibrate(15); // light tick
-        new Audio("js/audio/press.mp3").play().catch(() => {});
+        playSfx(sfxPress);
 
         if (cell.classList.contains("marked")) manualMarks.add(number);
         else manualMarks.delete(number);
@@ -395,6 +412,13 @@
   // Uses BingoClock.now() (server-corrected) instead of Date.now() so
   // this hits zero at the same real-world moment as the game-master
   // screen's countdown, regardless of either device's own clock.
+  //
+  // The reload is spread over a few random seconds. Every player's timer
+  // hits zero at the same instant, so reloading immediately would send
+  // 100+ full page loads (each with several DB queries) at the server in
+  // the same second.
+  const RELOAD_JITTER_MS = 4000;
+
   function startCardChangeCountdown() {
     if (!config.inCardChangeWindow || !config.cardChangeDeadline) return;
 
@@ -403,12 +427,20 @@
     if (!wrap || !el) return;
 
     const deadline = new Date(config.cardChangeDeadline).getTime();
+    let reloadScheduled = false;
 
     function tick() {
       const remaining = deadline - BingoClock.now().getTime();
 
       if (remaining <= 0) {
-        window.location.reload();
+        if (!reloadScheduled) {
+          reloadScheduled = true;
+          el.textContent = "0:00";
+          setTimeout(
+            () => window.location.reload(),
+            Math.random() * RELOAD_JITTER_MS,
+          );
+        }
         return;
       }
 
@@ -430,9 +462,13 @@
   // The server answers instantly (no long-poll), so a poll costs one tiny
   // query and never ties up a PHP worker. We send how many numbers we already
   // have; the server replies with only the ones after that, in draw order.
-  const POLL_BASE_MS = 1500; // visible tab: 1.5s + up to 1s jitter
-  const POLL_JITTER_MS = 1000;
-  const POLL_HIDDEN_MS = 5000; // backgrounded tab
+  //
+  // The same reply carries a gameOver hint, so there is no separate
+  // game-over poll on every player's phone.
+  const POLL_BASE_MS = 2000; // visible tab: 2s + up to 1.5s jitter
+  const POLL_JITTER_MS = 1500;
+  const POLL_HIDDEN_MS = 6000; // backgrounded tab
+  const GAME_OVER_FALLBACK_MS = 20000; // safety net only; the poll normally catches it first
 
   let pollTimer = null;
 
@@ -460,6 +496,12 @@
           cardUpdateHandlers.forEach((handler) => handler(trulyNew));
         }
       }
+
+      // The server says all winners are claimed — confirm with the real
+      // game-over check (which shows the dialog) instead of polling it.
+      if (data.gameOver && !previousGameOverRef.value) {
+        checkGameOverOnce();
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -483,7 +525,7 @@
     // Start the shared loops exactly once per page load.
     // Small random start offset so phones that loaded together don't poll in lockstep.
     pollTimer = setTimeout(pollNewNumbers, Math.random() * POLL_JITTER_MS);
-    setInterval(checkGameOverOnce, 5000);
+    setInterval(checkGameOverOnce, GAME_OVER_FALLBACK_MS);
     startCardChangeCountdown();
   });
 })();
